@@ -11,6 +11,7 @@ import type { z } from "zod";
 export interface AuthSession {
   userId: number;
   companyId: number;
+  role?: string | null;
 }
 
 /**
@@ -68,6 +69,7 @@ async function getAuthSession(): Promise<Result<AuthSession>> {
   return Result.ok({
     userId: Number(session.user.id),
     companyId: session.user.companyId,
+    role: session.user.role ?? null,
   });
 }
 

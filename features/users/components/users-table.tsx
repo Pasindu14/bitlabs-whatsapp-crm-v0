@@ -1,7 +1,5 @@
 "use client";
 
-"use client";
-
 import {
   Dialog,
   DialogContent,
@@ -10,7 +8,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Plus, RefreshCw } from "lucide-react";
+import { RefreshCw, Plus, ShieldCheck, ShieldOff } from "lucide-react";
 import { format } from "date-fns";
 import * as React from "react";
 import type {
@@ -30,27 +28,39 @@ import { DataTable } from "@/components/datatable/data-table";
 import { DataTableToolbar } from "@/components/datatable/data-table-toolbar";
 import { DataTableColumnHeader } from "@/components/datatable/data-table-column-header";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
-import { WhatsappAccountForm } from "./whatsapp-account-form";
 import {
-  useWhatsappAccounts,
-  useCreateWhatsappAccount,
-  useUpdateWhatsappAccount,
-  useSetDefaultWhatsappAccount,
-  useToggleWhatsappAccount,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { UserForm } from "./user-form";
+import {
+  useUsers,
+  useCreateUser,
+  useUpdateUser,
+  useToggleUserStatus,
+  useResetUserPassword,
   sortingStateToParams,
-} from "../hooks/use-whatsapp-accounts";
+} from "../hooks/use-users";
 import type {
-  WhatsappAccountListInput,
-  WhatsappAccountResponse,
-} from "../schemas/whatsapp-account.schema";
+  UserListInput,
+  UserResponse,
+} from "../schemas/user.schema";
+import { USER_ROLES } from "../schemas/user.schema";
+import { toast } from "sonner";
+import type { UserCreateInput, UserUpdateInput } from "../schemas/user.schema";
+type UserFormValues = Omit<UserCreateInput, "temporaryPassword"> & {
+  temporaryPassword?: string;
+  id?: number;
+};
 
 const DEFAULT_PAGE_SIZE = 20;
-const columnHelper = createColumnHelper<WhatsappAccountResponse>();
+const columnHelper = createColumnHelper<UserResponse>();
 
-export function WhatsappAccountsTable() {
-  const [search, setSearch] = React.useState("");
+export function UsersTable() {
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: "createdAt", desc: true },
   ]);
@@ -62,7 +72,7 @@ export function WhatsappAccountsTable() {
   const [pageIndex, setPageIndex] = React.useState(0);
   const [pageSize, setPageSize] = React.useState(DEFAULT_PAGE_SIZE);
   const [formOpen, setFormOpen] = React.useState(false);
-  const [editing, setEditing] = React.useState<WhatsappAccountResponse | null>(null);
+  const [editing, setEditing] = React.useState<UserResponse | null>(null);
 
   const statusFilterValue = React.useMemo<"true" | "false" | undefined>(() => {
     const statusFilter = columnFilters.find((filter) => filter.id === "isActive");
@@ -70,12 +80,11 @@ export function WhatsappAccountsTable() {
     return value === "true" || value === "false" ? value : undefined;
   }, [columnFilters]);
 
-  const queryParams = React.useMemo<WhatsappAccountListInput>(() => {
+  const queryParams = React.useMemo<UserListInput>(() => {
     const sortParams = sortingStateToParams(sorting);
     return {
       cursor: undefined,
       limit: pageSize,
-      search: search || undefined,
       isActive:
         statusFilterValue === "true"
           ? true
@@ -85,43 +94,57 @@ export function WhatsappAccountsTable() {
       sortField: sortParams.sortField ?? "createdAt",
       sortOrder: sortParams.sortOrder ?? "desc",
     };
-  }, [search, statusFilterValue, sorting, pageSize]);
+  }, [statusFilterValue, sorting, pageSize]);
 
-  const accountsQuery = useWhatsappAccounts(queryParams);
-  const pages = accountsQuery.data?.pages ?? [];
-  const hasMore = pages.length > 0 ? pages[pages.length - 1]?.hasMore ?? false : false;
-  const currentPageData = pages[pageIndex]?.items ?? [];
-  const totalCount = pages.reduce((acc, page) => acc + page.items.length, 0);
-  const pageCount = pages.length + (hasMore ? 1 : 0) || 1;
-
-  const createMutation = useCreateWhatsappAccount();
-  const updateMutation = useUpdateWhatsappAccount();
-  const setDefaultMutation = useSetDefaultWhatsappAccount();
-  const deactivateMutation = useToggleWhatsappAccount(true);
-  const activateMutation = useToggleWhatsappAccount(false);
-
-  const handleCreate = async (values: any) => {
-    await createMutation.mutateAsync(values);
-    setFormOpen(false);
-    setPageIndex(0);
-    accountsQuery.refetch();
-  };
-
-  const handleUpdate = async (values: any) => {
-    if (!editing) return;
-    await updateMutation.mutateAsync({ ...values, id: editing.id });
-    setEditing(null);
-    setFormOpen(false);
-    accountsQuery.refetch();
-  };
+  const usersQuery = useUsers(queryParams);
+  const createMutation = useCreateUser();
+  const updateMutation = useUpdateUser();
+  const activateMutation = useToggleUserStatus(true);
+  const deactivateMutation = useToggleUserStatus(false);
+  const resetPasswordMutation = useResetUserPassword();
 
   const isMutating =
     createMutation.isPending ||
     updateMutation.isPending ||
-    setDefaultMutation.isPending ||
+    activateMutation.isPending ||
     deactivateMutation.isPending ||
-    activateMutation.isPending;
-  const isLoading = accountsQuery.isLoading || accountsQuery.isFetching || isMutating;
+    resetPasswordMutation.isPending;
+
+  const handleCreate = async (values: UserFormValues) => {
+    if (!values.temporaryPassword) {
+      throw new Error("Temporary password is required");
+    }
+    await createMutation.mutateAsync(values as UserCreateInput);
+    setFormOpen(false);
+    setPageIndex(0);
+    usersQuery.refetch();
+  };
+
+  const handleUpdate = async (values: UserFormValues & { id: number }) => {
+    if (!editing) return;
+    const { temporaryPassword, ...rest } = values;
+    await updateMutation.mutateAsync({ ...rest, id: editing.id });
+    setEditing(null);
+    setFormOpen(false);
+    usersQuery.refetch();
+  };
+
+  const handleResetPassword = React.useCallback(
+    async (id: number) => {
+      const res = await resetPasswordMutation.mutateAsync({ id });
+      if (res?.resetToken) {
+        toast.success(`Reset token: ${res.resetToken}`);
+      }
+    },
+    [resetPasswordMutation]
+  );
+
+  const pages = usersQuery.data?.pages ?? [];
+  const hasMore = pages.length > 0 ? pages[pages.length - 1]?.hasMore ?? false : false;
+  const currentPageData = pages[pageIndex]?.items ?? [];
+  const totalCount = pages.reduce((acc, page) => acc + page.items.length, 0);
+  const pageCount = pages.length + (hasMore ? 1 : 0) || 1;
+  const isLoading = usersQuery.isLoading || usersQuery.isFetching || isMutating;
 
   const columns = React.useMemo(
     () => [
@@ -141,37 +164,36 @@ export function WhatsappAccountsTable() {
           placeholder: "Filter by name",
         },
       }),
-      columnHelper.accessor("phoneNumberId", {
+      columnHelper.accessor("email", {
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} label="Phone Number ID" />
+          <DataTableColumnHeader column={column} label="Email" />
         ),
-        cell: (info) => (
-          <div className="truncate">{info.getValue()}</div>
-        ),
+        cell: (info) => <div className="truncate">{info.getValue()}</div>,
       }),
-      columnHelper.accessor("businessAccountId", {
+      columnHelper.accessor("role", {
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} label="Business Account ID" />
+          <DataTableColumnHeader column={column} label="Role" />
         ),
         cell: (info) => (
-          <div className="truncate">{info.getValue()}</div>
+          <Badge variant="outline" className="capitalize">
+            {info.getValue()}
+          </Badge>
         ),
+        meta: {
+          label: "Role",
+          variant: "select",
+          options: USER_ROLES.map((role: UserResponse["role"]) => ({ label: role, value: role })),
+        },
       }),
       columnHelper.accessor("isActive", {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} label="Status" />
         ),
-        cell: (info) => {
-          const row = info.row.original;
-          return (
-            <div className="flex gap-2">
-              <Badge variant={row.isActive ? "default" : "secondary"}>
-                {row.isActive ? "Active" : "Inactive"}
-              </Badge>
-              {row.isDefault && <Badge variant="outline">Default</Badge>}
-            </div>
-          );
-        },
+        cell: (info) => (
+          <Badge variant={info.getValue() ? "default" : "secondary"}>
+            {info.getValue() ? "Active" : "Inactive"}
+          </Badge>
+        ),
         filterFn: (row, columnId, filterValue) => {
           if (!Array.isArray(filterValue) || filterValue.length === 0) return true;
           const value = row.getValue(columnId);
@@ -189,15 +211,26 @@ export function WhatsappAccountsTable() {
           ],
         },
       }),
+      columnHelper.accessor("startDateTime", {
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} label="Start" />
+        ),
+        cell: (info) =>
+          info.getValue()
+            ? format(new Date(info.getValue()), "yyyy-MM-dd HH:mm")
+            : "-",
+        meta: {
+          label: "Start",
+          variant: "date",
+        },
+      }),
       columnHelper.accessor("updatedAt", {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} label="Updated" />
         ),
         cell: (info) => {
           const value = info.getValue();
-          return value
-            ? format(new Date(value), "yyyy-MM-dd HH:mm")
-            : "-";
+          return value ? format(new Date(value), "yyyy-MM-dd HH:mm") : "-";
         },
         meta: {
           label: "Updated",
@@ -223,33 +256,11 @@ export function WhatsappAccountsTable() {
               variant="outline"
               size="sm"
               onClick={() => {
-                setEditing({
-                  ...row.original,
-                  webhookUrl: row.original.webhookUrl ?? null,
-                });
+                setEditing(row.original);
                 setFormOpen(true);
               }}
             >
               Edit
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setDefaultMutation.mutate(row.original.id)}
-              disabled={row.original.isDefault}
-            >
-              Default
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() =>
-                row.original.isActive
-                  ? deactivateMutation.mutate(row.original.id)
-                  : activateMutation.mutate(row.original.id)
-              }
-            >
-              {row.original.isActive ? "Deactivate" : "Activate"}
             </Button>
           </div>
         ),
@@ -257,13 +268,10 @@ export function WhatsappAccountsTable() {
         enableHiding: false,
       }),
     ],
-    [
-      setDefaultMutation,
-      deactivateMutation,
-      activateMutation,
-    ],
+    [activateMutation, deactivateMutation, handleResetPassword]
   );
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: currentPageData,
     columns,
@@ -289,13 +297,13 @@ export function WhatsappAccountsTable() {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => accountsQuery.refetch()}
-          disabled={accountsQuery.isFetching}
+          onClick={() => usersQuery.refetch()}
+          disabled={usersQuery.isFetching}
           aria-label="Refresh"
         >
           <RefreshCw
             className={`h-4 w-4 ${
-              accountsQuery.isFetching ? "animate-spin" : ""
+              usersQuery.isFetching ? "animate-spin" : ""
             }`}
           />
         </Button>
@@ -309,25 +317,18 @@ export function WhatsappAccountsTable() {
           <DialogTrigger asChild>
             <Button size="sm">
               <Plus className="mr-2 h-4 w-4" />
-              New Account
+              Add User
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>
-                {editing ? "Edit account" : "Create account"}
+                {editing ? "Edit user" : "Add user"}
               </DialogTitle>
             </DialogHeader>
-            <WhatsappAccountForm
+            <UserForm
               isEdit={!!editing}
-              defaultValues={
-                editing
-                  ? {
-                      ...editing,
-                      webhookUrl: editing.webhookUrl ?? undefined,
-                    }
-                  : undefined
-              }
+              defaultValues={editing ?? undefined}
               loading={isMutating}
               onCancel={() => {
                 setFormOpen(false);
@@ -335,7 +336,7 @@ export function WhatsappAccountsTable() {
               }}
               onSubmit={async (values) => {
                 if (editing) {
-                  await handleUpdate(values);
+                  await handleUpdate({ ...values, id: editing.id });
                 } else {
                   await handleCreate(values);
                 }
@@ -345,7 +346,8 @@ export function WhatsappAccountsTable() {
         </Dialog>
       </div>
 
-      <DataTableToolbar table={table} />
+      <DataTableToolbar table={table}/>
+
       <div className="relative">
         {isLoading && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60">
@@ -359,7 +361,7 @@ export function WhatsappAccountsTable() {
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
-          Displaying {currentPageData.length} of {totalCount} accounts
+          Displaying {currentPageData.length} of {totalCount} users
         </p>
         <div className="flex items-center gap-2">
           <Button
@@ -375,7 +377,7 @@ export function WhatsappAccountsTable() {
             onClick={async () => {
               const nextIndex = pageIndex + 1;
               if (nextIndex > pages.length - 1 && hasMore) {
-                await accountsQuery.fetchNextPage();
+                await usersQuery.fetchNextPage();
               }
               setPageIndex(nextIndex);
             }}
@@ -384,7 +386,7 @@ export function WhatsappAccountsTable() {
           </Button>
           <Select
             value={`${pageSize}`}
-            onValueChange={(value) => {
+            onValueChange={(value: string) => {
               const size = Number(value);
               setPageSize(size);
               setPageIndex(0);

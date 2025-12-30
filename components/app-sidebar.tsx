@@ -28,12 +28,12 @@ const navMainData = [
         url: "/users",
       },
       {
-        title: "Conversations",
-        url: "/conversations",
-      },
-      {
         title: "WhatsApp Accounts",
         url: "/whatsapp-accounts",
+      },
+      {
+        title: "Data Table Demo",
+        url: "/datatable-demo",
       },
     ],
   },
