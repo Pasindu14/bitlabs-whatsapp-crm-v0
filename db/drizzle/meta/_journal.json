@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1767068296574,
+      "tag": "0000_material_maria_hill",
+      "breakpoints": true
+    }
+  ]
+}
