@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { UserForm } from "./user-form";
+import { ResetPasswordDialog } from "./reset-password-dialog";
 import {
   useUsers,
   useCreateUser,
@@ -50,7 +51,6 @@ import type {
   UserResponse,
 } from "../schemas/user.schema";
 import { USER_ROLES } from "../schemas/user.schema";
-import { toast } from "sonner";
 import type { UserCreateInput, UserUpdateInput } from "../schemas/user.schema";
 type UserFormValues = Omit<UserCreateInput, "temporaryPassword"> & {
   temporaryPassword?: string;
@@ -73,6 +73,8 @@ export function UsersTable() {
   const [pageSize, setPageSize] = React.useState(DEFAULT_PAGE_SIZE);
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<UserResponse | null>(null);
+  const [resetUserId, setResetUserId] = React.useState<number | null>(null);
+  const [resetUserName, setResetUserName] = React.useState<string | undefined>(undefined);
 
   const statusFilterValue = React.useMemo<"true" | "false" | undefined>(() => {
     const statusFilter = columnFilters.find((filter) => filter.id === "isActive");
@@ -122,22 +124,13 @@ export function UsersTable() {
 
   const handleUpdate = async (values: UserFormValues & { id: number }) => {
     if (!editing) return;
-    const { temporaryPassword, ...rest } = values;
-    await updateMutation.mutateAsync({ ...rest, id: editing.id });
+    const payload = { ...values, id: editing.id };
+    delete (payload as Partial<UserFormValues> & { id: number }).temporaryPassword;
+    await updateMutation.mutateAsync(payload as UserUpdateInput & { id: number });
     setEditing(null);
     setFormOpen(false);
     usersQuery.refetch();
   };
-
-  const handleResetPassword = React.useCallback(
-    async (id: number) => {
-      const res = await resetPasswordMutation.mutateAsync({ id });
-      if (res?.resetToken) {
-        toast.success(`Reset token: ${res.resetToken}`);
-      }
-    },
-    [resetPasswordMutation]
-  );
 
   const pages = usersQuery.data?.pages ?? [];
   const hasMore = pages.length > 0 ? pages[pages.length - 1]?.hasMore ?? false : false;
@@ -262,13 +255,23 @@ export function UsersTable() {
             >
               Edit
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setResetUserId(row.original.id);
+                setResetUserName(row.original.name);
+              }}
+            >
+              Reset password
+            </Button>
           </div>
         ),
         enableSorting: false,
         enableHiding: false,
       }),
     ],
-    [activateMutation, deactivateMutation, handleResetPassword]
+    []
   );
 
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -344,6 +347,23 @@ export function UsersTable() {
             />
           </DialogContent>
         </Dialog>
+
+        <ResetPasswordDialog
+          open={resetUserId !== null}
+          userName={resetUserName}
+          loading={resetPasswordMutation.isPending}
+          onClose={() => {
+            setResetUserId(null);
+            setResetUserName(undefined);
+          }}
+          onConfirm={async () => {
+            if (resetUserId) {
+              await resetPasswordMutation.mutateAsync({ id: resetUserId });
+              setResetUserId(null);
+              setResetUserName(undefined);
+            }
+          }}
+        />
       </div>
 
       <DataTableToolbar table={table}/>
