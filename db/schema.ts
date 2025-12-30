@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, serial, integer, boolean, index, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, serial, integer, boolean, index, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const companiesTable = pgTable("companies", {
@@ -113,12 +113,30 @@ export const whatsappAccountsTable = pgTable("whatsapp_accounts", {
     accessToken: text("access_token").notNull(), // Store encrypted in production
     webhookUrl: text("webhook_url"),
     isActive: boolean("is_active").notNull().default(true),
+    isDefault: boolean("is_default").notNull().default(false),
+    // Track auditing users - use explicit type cast to avoid circular reference
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    createdBy: integer("created_by").references((): any => usersTable.id),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    updatedBy: integer("updated_by").references((): any => usersTable.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }),
 }, (table) => [
     // Primary query index: company_id
     index("whatsapp_accounts_company_id_idx")
         .on(table.companyId.asc()),
+
+    // Unique per company
+    uniqueIndex("whatsapp_accounts_company_phone_unique")
+        .on(table.companyId.asc(), table.phoneNumberId.asc()),
+
+    uniqueIndex("whatsapp_accounts_company_name_unique")
+        .on(table.companyId.asc(), table.name.asc()),
+
+    // Partial unique for default account per company
+    uniqueIndex("whatsapp_accounts_company_default_unique")
+        .on(table.companyId.asc())
+        .where(sql`${table.isDefault} = true`),
 
     // Composite index for filtering active accounts
     index("whatsapp_accounts_company_active_created_idx")
@@ -127,6 +145,17 @@ export const whatsappAccountsTable = pgTable("whatsapp_accounts", {
     // Composite index for cursor pagination
     index("whatsapp_accounts_company_created_id_idx")
         .on(table.companyId.asc(), table.createdAt.desc(), table.id.asc()),
+
+    // Composite index for name sorting/search
+    index("whatsapp_accounts_company_name_id_idx")
+        .on(table.companyId.asc(), table.name.asc(), table.id.asc()),
+
+    // Lookup indexes
+    index("whatsapp_accounts_company_phone_idx")
+        .on(table.companyId.asc(), table.phoneNumberId.asc()),
+
+    index("whatsapp_accounts_company_business_id_idx")
+        .on(table.companyId.asc(), table.businessAccountId.asc()),
 ]);
 
 // Contacts linked to WhatsApp phone numbers
