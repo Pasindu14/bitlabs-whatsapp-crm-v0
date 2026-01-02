@@ -42,7 +42,7 @@ export function useUsers(params: UserListInput) {
         ...params,
         cursor: (pageParam as string | undefined) ?? params.cursor,
       });
-      if (!result.success) throw new Error(result.message);
+      if (!result.ok) throw new Error(result.error);
       return result.data as UserListResponse;
     },
     initialPageParam: params.cursor ?? undefined,
@@ -55,7 +55,7 @@ export function useCreateUser() {
   return useMutation({
     mutationFn: async (data: UserCreateInput) => {
       const result = await createUserAction(data);
-      if (!result.success) throw new Error(result.message);
+      if (!result.ok) throw new Error(result.error);
       return result.data;
     },
     onSuccess: () => {
@@ -71,7 +71,7 @@ export function useUpdateUser() {
   return useMutation({
     mutationFn: async (data: UserUpdateInput & { id: number }) => {
       const result = await updateUserAction(data);
-      if (!result.success) throw new Error(result.message);
+      if (!result.ok) throw new Error(result.error);
       return result.data;
     },
     onSuccess: () => {
@@ -87,7 +87,7 @@ export function useToggleUserStatus(targetActive: boolean) {
   return useMutation({
     mutationFn: async (input: { id: number }) => {
       const result = await toggleUserStatusAction({ ...input, isActive: targetActive });
-      if (!result.success) throw new Error(result.message);
+      if (!result.ok) throw new Error(result.error);
       return result.data;
     },
     onSuccess: () => {
@@ -103,7 +103,7 @@ export function useResetUserPassword() {
   return useMutation({
     mutationFn: async (input: { id: number }) => {
       const result = await resetUserPasswordAction(input);
-      if (!result.success) throw new Error(result.message);
+      if (!result.ok) throw new Error(result.error);
       return result.data;
     },
     onSuccess: (data) => {

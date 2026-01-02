@@ -42,7 +42,7 @@ export function useWhatsappAccounts(params: WhatsappAccountListInput) {
         ...params,
         cursor: (pageParam as string | undefined) ?? params.cursor,
       });
-      if (!result.success) throw new Error(result.message);
+      if (!result.ok) throw new Error(result.error);
       return result.data as WhatsappAccountListResponse;
     },
     initialPageParam: params.cursor ?? undefined,
@@ -55,7 +55,7 @@ export function useCreateWhatsappAccount() {
   return useMutation({
     mutationFn: async (data: WhatsappAccountCreateInput) => {
       const result = await createWhatsappAccountAction(data);
-      if (!result.success) throw new Error(result.message);
+      if (!result.ok) throw new Error(result.error);
       return result.data;
     },
     onSuccess: () => {
@@ -71,7 +71,7 @@ export function useUpdateWhatsappAccount() {
   return useMutation({
     mutationFn: async (data: WhatsappAccountUpdateInput & { id: number }) => {
       const result = await updateWhatsappAccountAction(data as any);
-      if (!result.success) throw new Error(result.message);
+      if (!result.ok) throw new Error(result.error);
       return result.data;
     },
     onSuccess: () => {
@@ -87,7 +87,7 @@ export function useSetDefaultWhatsappAccount() {
   return useMutation({
     mutationFn: async (id: number) => {
       const result = await setDefaultWhatsappAccountAction({ id });
-      if (!result.success) throw new Error(result.message);
+      if (!result.ok) throw new Error(result.error);
       return result.data;
     },
     onSuccess: () => {
@@ -105,7 +105,7 @@ export function useToggleWhatsappAccount(active: boolean) {
   return useMutation({
     mutationFn: async (id: number) => {
       const result = await action({ id });
-      if (!result.success) throw new Error(result.message);
+      if (!result.ok) throw new Error(result.error);
       return result.data;
     },
     onSuccess: () => {

@@ -2,6 +2,7 @@ import { db } from "@/db/drizzle";
 import { usersTable } from "@/db/schema";
 import { Result } from "@/lib/result";
 import { createPerformanceLogger } from "@/lib/logger";
+import { AuditLogService } from "@/lib/audit-log.service";
 import { and, eq, ilike, or, sql } from "drizzle-orm";
 import { formatISO } from "date-fns";
 import bcrypt from "bcrypt";
@@ -266,6 +267,13 @@ export class UserService {
 
       const mapped = mapToUserRecord(created);
 
+      await AuditLogService.log({
+        companyId: input.companyId,
+        userId: input.userId,
+        action: "user.create",
+        resourceId: mapped.id,
+      });
+
       perf.complete(1, { userId: mapped.id });
       return Result.ok(mapped);
     } catch (error) {
@@ -355,6 +363,13 @@ export class UserService {
 
       const mapped = mapToUserRecord(updated);
 
+      await AuditLogService.log({
+        companyId: input.companyId,
+        userId: input.userId,
+        action: "user.update",
+        resourceId: mapped.id,
+      });
+
       perf.complete(1, { userId: mapped.id });
       return Result.ok(mapped);
     } catch (error) {
@@ -404,6 +419,13 @@ export class UserService {
         })
         .where(and(eq(usersTable.companyId, input.companyId), eq(usersTable.id, input.id)));
 
+      await AuditLogService.log({
+        companyId: input.companyId,
+        userId: input.userId,
+        action: "user.toggleStatus",
+        resourceId: input.id,
+      });
+
       perf.complete(1, { userId: input.id, isActive: input.isActive });
       return Result.ok(null);
     } catch (error) {
@@ -437,6 +459,13 @@ export class UserService {
           updatedAt: sql`now()`,
         })
         .where(and(eq(usersTable.companyId, input.companyId), eq(usersTable.id, input.id)));
+
+      await AuditLogService.log({
+        companyId: input.companyId,
+        userId: input.userId,
+        action: "user.resetPassword",
+        resourceId: input.id,
+      });
 
       perf.complete(1, { userId: input.id });
       return Result.ok({ resetToken: "abc@123" });

@@ -6,8 +6,8 @@ export function useSignIn() {
   return useMutation({
     mutationFn: async (data: SignInData) => {
       const result = await signInAction(data);
-      if (!result.success) {
-        throw new Error(result.message || "Failed to sign in");
+      if (!result.ok) {
+        throw new Error(result.error || "Failed to sign in");
       }
       return result.data;
     },

@@ -210,7 +210,7 @@ export function UsersTable() {
         ),
         cell: (info) =>
           info.getValue()
-            ? format(new Date(info.getValue()), "yyyy-MM-dd HH:mm")
+            ? format(info.getValue(), "yyyy-MM-dd HH:mm")
             : "-",
         meta: {
           label: "Start",
@@ -223,7 +223,7 @@ export function UsersTable() {
         ),
         cell: (info) => {
           const value = info.getValue();
-          return value ? format(new Date(value), "yyyy-MM-dd HH:mm") : "-";
+          return value ? format(value, "yyyy-MM-dd HH:mm") : "-";
         },
         meta: {
           label: "Updated",
@@ -234,7 +234,7 @@ export function UsersTable() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} label="Created" />
         ),
-        cell: (info) => format(new Date(info.getValue()), "yyyy-MM-dd HH:mm"),
+        cell: (info) => format(info.getValue(), "yyyy-MM-dd HH:mm"),
         meta: {
           label: "Created",
           variant: "date",

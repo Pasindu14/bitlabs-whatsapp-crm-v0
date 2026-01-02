@@ -18,13 +18,9 @@ export interface AuthSession {
  * Plain object result type for client/server boundary
  */
 export type PlainResult<T> = {
-  success: true;
-  data: T;
-  message?: string;
-} | {
-  success: false;
-  data?: never;
-  message: string;
+  ok: boolean;
+  data?: T;
+  error?: string;
 };
 
 /**
@@ -33,14 +29,13 @@ export type PlainResult<T> = {
 function toPlainResult<T>(result: Result<T>): PlainResult<T> {
   if (result.success) {
     return {
-      success: true,
+      ok: true,
       data: result.data as T,
-      message: result.message,
     };
   } else {
     return {
-      success: false,
-      message: result.message,
+      ok: false,
+      error: result.message,
     };
   }
 }
