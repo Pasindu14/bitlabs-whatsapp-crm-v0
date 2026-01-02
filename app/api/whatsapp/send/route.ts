@@ -12,6 +12,8 @@ import type { SendTextMessageRequest, SendTextMessageResponse } from "../types";
  *   companyId: number;
  *   recipientPhoneNumber: string;
  *   text: string;
+ *   phoneNumberId: string;
+ *   accessToken: string;
  * }
  */
 export async function POST(
@@ -30,7 +32,7 @@ export async function POST(
     }
 
     // Validate required fields
-    const { companyId, recipientPhoneNumber, text } = body;
+    const { companyId, recipientPhoneNumber, text, phoneNumberId, accessToken } = body as SendTextMessageRequest & { phoneNumberId?: string; accessToken?: string };
 
     if (!companyId || typeof companyId !== "number") {
       return NextResponse.json(
@@ -53,13 +55,25 @@ export async function POST(
       );
     }
 
-    // Validate environment variables
-    const apiVersion = process.env.WHATSAPP_API_VERSION;
-    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    if (!phoneNumberId || typeof phoneNumberId !== "string") {
+      return NextResponse.json(
+        { success: false, error: "Missing or invalid phoneNumberId" },
+        { status: 400 }
+      );
+    }
 
-    if (!apiVersion || !phoneNumberId || !accessToken) {
-      console.error("[WhatsApp API] Missing environment variables");
+    if (!accessToken || typeof accessToken !== "string") {
+      return NextResponse.json(
+        { success: false, error: "Missing or invalid accessToken" },
+        { status: 400 }
+      );
+    }
+
+    // Get API version from environment (constant)
+    const apiVersion = process.env.WHATSAPP_API_VERSION || "v18.0";
+
+    if (!apiVersion) {
+      console.error("[WhatsApp API] Missing WHATSAPP_API_VERSION environment variable");
       return NextResponse.json(
         { success: false, error: "Server configuration error" },
         { status: 500 }
@@ -107,12 +121,14 @@ export async function POST(
           success: true,
           messageId,
         });
-      } catch (error: any) {
-        const status = error?.response?.status ?? 500;
-        const payloadErr =
-          error?.response?.data?.error?.message ??
-          error?.response?.data ??
-          error?.message ??
+      } catch (error) {
+        const axiosError = error as { response?: { status?: number; data?: unknown }; message?: string };
+        const status = axiosError?.response?.status ?? 500;
+        const responseData = axiosError?.response?.data as { error?: { message?: string } };
+        const payloadErr: string =
+          responseData?.error?.message ??
+          (typeof axiosError?.response?.data === "string" ? (axiosError.response.data as string) : "") ??
+          axiosError?.message ??
           "Internal error";
 
         console.error("[WhatsApp Send Text API Error]", {
@@ -147,9 +163,10 @@ export async function POST(
       { success: false, error: `Failed to send message: ${lastError?.message}` },
       { status: 500 }
     );
-  } catch (error: any) {
+  } catch (error) {
+    const unexpectedError = error as { message?: string };
     console.error("[WhatsApp Send Text API] Unexpected error", {
-      error: error?.message,
+      error: unexpectedError?.message,
     });
 
     return NextResponse.json(
