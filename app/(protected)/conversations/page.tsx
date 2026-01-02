@@ -1,0 +1,114 @@
+'use client';
+
+import { Plus } from 'lucide-react';
+import { ConversationList } from '@/features/conversations/components/conversation-list';
+import { MessageList } from '@/features/conversations/components/message-list';
+import { ConversationFilterChips } from '@/features/conversations/components/conversation-filter-chips';
+import { ConversationSearch } from '@/features/conversations/components/conversation-search';
+import { MessageInput } from '@/features/conversations/components/message-input';
+import { NewMessageModal } from '@/features/conversations/components/new-message-modal';
+import { useConversationStore } from '@/features/conversations/store/conversation-store';
+import { useSendNewMessage } from '@/features/conversations/hooks/conversation-hooks';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+
+export default function ConversationsPage() {
+  const {
+    selectedConversationId,
+    filterType,
+    searchTerm,
+    showArchivedSection,
+    openNewMessageModal,
+  } = useConversationStore();
+
+  const { isPending: isSending } = useSendNewMessage();
+
+  const handleSendMessage = () => {
+    if (!selectedConversationId) {
+      toast.error('Please select a conversation first');
+      return;
+    }
+
+    // This would need to be implemented with the conversation's contact phone
+    // For now, we'll show a placeholder
+    toast.info('Message sending not yet implemented for existing conversations');
+  };
+
+  return (
+    <div className="flex h-screen gap-4 bg-background">
+      {/* Sidebar */}
+      <div className="w-80 border-r flex flex-col">
+        {/* Header */}
+        <div className="border-b p-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Messages</p>
+            <p className="text-lg font-bold">Inbox</p>
+          </div>
+          <Button
+            size="icon"
+            variant="outline"
+            onClick={openNewMessageModal}
+            aria-label="New message"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Search */}
+        <ConversationSearch />
+
+        {/* Filter Chips */}
+        <ConversationFilterChips />
+
+        {/* Conversation List */}
+        <div className="flex-1 overflow-hidden">
+          <ConversationList
+            filterType={filterType}
+            searchTerm={searchTerm}
+            includeArchived={showArchivedSection}
+          />
+        </div>
+      </div>
+
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col">
+        {selectedConversationId ? (
+          <>
+            {/* Chat Header */}
+            <div className="border-b p-4">
+              <h2 className="text-lg font-semibold">Conversation</h2>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-hidden">
+              <MessageList
+                conversationId={selectedConversationId}
+                companyId={0}
+              />
+            </div>
+
+            {/* Message Input */}
+            <MessageInput
+              onSend={handleSendMessage}
+              isLoading={isSending}
+            />
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-lg font-medium text-foreground">
+                Select a conversation to start messaging
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Or create a new message with the + button
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Modals */}
+      <NewMessageModal />
+    </div>
+  );
+}

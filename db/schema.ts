@@ -158,3 +158,130 @@ export const whatsappAccountsTable = pgTable("whatsapp_accounts", {
         .on(table.companyId.asc(), table.businessAccountId.asc()),
 ]);
 
+// Contacts Table
+export const contactsTable = pgTable("contacts", {
+    id: serial("id").primaryKey(),
+    companyId: integer("company_id").references(() => companiesTable.id).notNull(),
+    phone: text("phone").notNull(),
+    name: text("name"),
+    avatar: text("avatar"),
+    isGroup: boolean("is_group").notNull().default(false),
+    presence: text("presence"),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    createdBy: integer("created_by").references((): any => usersTable.id),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    updatedBy: integer("updated_by").references((): any => usersTable.id),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+}, (table) => [
+    // Unique constraint: one contact per company + phone
+    uniqueIndex("contacts_company_phone_unique")
+        .on(table.companyId.asc(), table.phone.asc()),
+
+    // List active contacts
+    index("contacts_company_is_active_idx")
+        .on(table.companyId.asc(), table.isActive.asc()),
+
+    // Search by name
+    index("contacts_company_name_idx")
+        .on(table.companyId.asc(), table.name.asc()),
+
+    // Composite index for cursor pagination
+    index("contacts_company_created_id_idx")
+        .on(table.companyId.asc(), table.createdAt.desc(), table.id.asc()),
+]);
+
+// Conversations Table
+export const conversationsTable = pgTable("conversations", {
+    id: serial("id").primaryKey(),
+    companyId: integer("company_id").references(() => companiesTable.id).notNull(),
+    contactId: integer("contact_id").references(() => contactsTable.id).notNull(),
+    lastMessageId: integer("last_message_id"),
+    lastMessagePreview: text("last_message_preview"),
+    lastMessageTime: timestamp("last_message_time", { withTimezone: true }),
+    unreadCount: integer("unread_count").notNull().default(0),
+    isFavorite: boolean("is_favorite").notNull().default(false),
+    isArchived: boolean("is_archived").notNull().default(false),
+    assignedToUserId: integer("assigned_to_user_id").references(() => usersTable.id),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    createdBy: integer("created_by").references((): any => usersTable.id),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    updatedBy: integer("updated_by").references((): any => usersTable.id),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+}, (table) => [
+    // Unique constraint: one conversation per company + contact
+    uniqueIndex("conversations_company_contact_unique")
+        .on(table.companyId.asc(), table.contactId.asc()),
+
+    // List active conversations
+    index("conversations_company_is_active_is_archived_idx")
+        .on(table.companyId.asc(), table.isActive.asc(), table.isArchived.asc()),
+
+    // Filter by favorite
+    index("conversations_company_is_favorite_is_active_idx")
+        .on(table.companyId.asc(), table.isFavorite.asc(), table.isActive.asc()),
+
+    // Filter by unread
+    index("conversations_company_unread_count_idx")
+        .on(table.companyId.asc(), table.unreadCount.asc()),
+
+    // Sort by recency
+    index("conversations_company_last_message_time_idx")
+        .on(table.companyId.asc(), table.lastMessageTime.desc()),
+
+    // Find conversations assigned to user
+    index("conversations_assigned_to_user_company_idx")
+        .on(table.assignedToUserId.asc(), table.companyId.asc()),
+
+    // Composite index for cursor pagination
+    index("conversations_company_last_message_time_id_idx")
+        .on(table.companyId.asc(), table.lastMessageTime.desc(), table.id.asc()),
+]);
+
+// Messages Table
+export const messagesTable = pgTable("messages", {
+    id: serial("id").primaryKey(),
+    conversationId: integer("conversation_id").references(() => conversationsTable.id).notNull(),
+    companyId: integer("company_id").references(() => companiesTable.id).notNull(),
+    contactId: integer("contact_id").references(() => contactsTable.id).notNull(),
+    direction: text("direction").notNull(),
+    status: text("status").notNull().default("sending"),
+    content: text("content").notNull(),
+    mediaUrl: text("media_url"),
+    mediaType: text("media_type"),
+    providerMessageId: text("provider_message_id"),
+    providerStatus: text("provider_status"),
+    errorCode: text("error_code"),
+    errorMessage: text("error_message"),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    createdBy: integer("created_by").references((): any => usersTable.id),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    updatedBy: integer("updated_by").references((): any => usersTable.id),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+}, (table) => [
+    // Fetch messages for conversation (paginated)
+    index("messages_conversation_created_at_idx")
+        .on(table.conversationId.asc(), table.createdAt.desc()),
+
+    // Find messages by status (for polling/retry)
+    index("messages_company_status_idx")
+        .on(table.companyId.asc(), table.status.asc()),
+
+    // Find message by provider ID (for webhook updates)
+    index("messages_provider_message_id_idx")
+        .on(table.providerMessageId.asc()),
+
+    // Active messages only
+    index("messages_conversation_is_active_idx")
+        .on(table.conversationId.asc(), table.isActive.asc()),
+
+    // Composite index for cursor pagination
+    index("messages_conversation_created_at_id_idx")
+        .on(table.conversationId.asc(), table.createdAt.desc(), table.id.asc()),
+]);
+
