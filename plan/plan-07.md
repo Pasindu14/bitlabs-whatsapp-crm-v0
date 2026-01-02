@@ -18,6 +18,17 @@ Implement a complete, production-ready message sending flow that orchestrates:
 - Retry mechanism for failed sends
 - UI should be same as whatsapp web
 
+
+Folder Structure:
+
+1. **Schema (`schemas/{domain}-schema.ts`)** → Define types and validation
+2. **Service (`services/{domain}-service.ts`)** → Implement business logic
+3. **Actions (`actions/{domain}-actions.ts`)** → Expose server actions
+4. **Hooks (`hooks/{domain}-hooks.ts`)** → Create React Query wrappers
+5. **Store (`store/{domain}-store.ts`)** → Add client state (if needed)
+6. **Components (`components/*.tsx`)** → Build UI
+7. **Types (`types/{domain}-types.ts`)** → Define types and interfaces
+
 ### Actors & Permissions
 - **Authenticated user** (within a company): Can send messages to any phone number
 - **Company scope**: All operations scoped by `companyId`
@@ -94,8 +105,8 @@ failed → (retry) → sending
 
 ```sql
 CREATE TABLE contacts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  companyId UUID NOT NULL,
+  id SERIAL PRIMARY KEY,
+  companyId INTEGER NOT NULL,
   phone VARCHAR(20) NOT NULL,  -- E.164 format
   name VARCHAR(255),
   avatar VARCHAR(255),
@@ -103,8 +114,8 @@ CREATE TABLE contacts (
   presence VARCHAR(50),  -- online/offline/away
   createdAt TIMESTAMP DEFAULT NOW(),
   updatedAt TIMESTAMP DEFAULT NOW(),
-  createdBy UUID,
-  updatedBy UUID,
+  createdBy INTEGER,
+  updatedBy INTEGER,
   isActive BOOLEAN DEFAULT TRUE,
   
   CONSTRAINT fk_contacts_company FOREIGN KEY (companyId) REFERENCES companies(id),
@@ -123,20 +134,20 @@ CREATE TABLE contacts (
 
 ```sql
 CREATE TABLE conversations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  companyId UUID NOT NULL,
-  contactId UUID NOT NULL,
-  lastMessageId UUID,
+  id SERIAL PRIMARY KEY,
+  companyId INTEGER NOT NULL,
+  contactId INTEGER NOT NULL,
+  lastMessageId INTEGER,
   lastMessagePreview VARCHAR(255),
   lastMessageTime TIMESTAMP,
-  unreadCount INT DEFAULT 0,
+  unreadCount INTEGER DEFAULT 0,
   isFavorite BOOLEAN DEFAULT FALSE,
   isArchived BOOLEAN DEFAULT FALSE,
-  assignedToUserId UUID,
+  assignedToUserId INTEGER,
   createdAt TIMESTAMP DEFAULT NOW(),
   updatedAt TIMESTAMP DEFAULT NOW(),
-  createdBy UUID,
-  updatedBy UUID,
+  createdBy INTEGER,
+  updatedBy INTEGER,
   isActive BOOLEAN DEFAULT TRUE,
   
   CONSTRAINT fk_conversations_company FOREIGN KEY (companyId) REFERENCES companies(id),
@@ -161,10 +172,10 @@ CREATE TABLE conversations (
 
 ```sql
 CREATE TABLE messages (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  conversationId UUID NOT NULL,
-  companyId UUID NOT NULL,
-  contactId UUID NOT NULL,
+  id SERIAL PRIMARY KEY,
+  conversationId INTEGER NOT NULL,
+  companyId INTEGER NOT NULL,
+  contactId INTEGER NOT NULL,
   direction VARCHAR(20) NOT NULL,  -- inbound/outbound
   status VARCHAR(50) DEFAULT 'sending',  -- sending/sent/delivered/read/failed
   content TEXT NOT NULL,
@@ -176,8 +187,8 @@ CREATE TABLE messages (
   errorMessage TEXT,
   createdAt TIMESTAMP DEFAULT NOW(),
   updatedAt TIMESTAMP DEFAULT NOW(),
-  createdBy UUID,
-  updatedBy UUID,
+  createdBy INTEGER,
+  updatedBy INTEGER,
   isActive BOOLEAN DEFAULT TRUE,
   
   CONSTRAINT fk_messages_conversation FOREIGN KEY (conversationId) REFERENCES conversations(id),

@@ -15,6 +15,13 @@
       "when": 1767070639795,
       "tag": "0001_eager_selene",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1767343931393,
+      "tag": "0002_abandoned_young_avengers",
+      "breakpoints": true
     }
   ]
 }
