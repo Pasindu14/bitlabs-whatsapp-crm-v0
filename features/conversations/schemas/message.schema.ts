@@ -19,16 +19,22 @@ export const messageListClientSchema = z.object({
   limit: z.number().int().min(1).max(50).optional(),
 });
 
-export const sendMessageClientSchema = z.object({
-  conversationId: z.number().int(),
-  type: z.enum(["text", "image", "document", "template"]),
-  content: z.object({
-    text: z.string().optional(),
-    url: z.string().url().optional(),
-    templateName: z.string().optional(),
-    variables: z.record(z.string(), z.string()).optional(),
-  }),
-});
+export const sendMessageClientSchema = z
+  .object({
+    conversationId: z.number().int().optional(),
+    phoneNumber: z.string().trim().min(3).optional(),
+    type: z.enum(["text", "image", "document", "template"]),
+    content: z.object({
+      text: z.string().optional(),
+      url: z.string().url().optional(),
+      templateName: z.string().optional(),
+      variables: z.record(z.string(), z.string()).optional(),
+    }),
+  })
+  .refine(
+    (val) => Boolean(val.conversationId) || Boolean(val.phoneNumber),
+    "conversationId or phoneNumber is required"
+  );
 
 export type MessageResponse = z.infer<typeof messageResponseSchema>;
 export type MessageListResponse = {
