@@ -1,104 +1,421 @@
+# WhatsApp CRM — Conversations Page (End-to-End Build Plan for AI IDE)
+
+> Target: Build the WhatsApp Conversations UI (left list + chat thread + right contact panel) and all backend flows (DB → services → actions → hooks → UI → webhook ingest), using **existing schemas**.  
+> Key requirement: **Sending messages must go through internal API route** `POST /api/whatsapp/send` (provider integration stays inside that route).
+
 ---
-feature: WhatsApp Chat Workspace (Contacts, Conversations, Messages)
-plan: 03
-date: 2026-01-02
+
+## 0) Definition of Done (DoD)
+
+### UI
+- Left panel: WhatsApp account selector, status filter (Active/Archived), search, conversation list, unread badges.
+- Center panel: selected conversation header, message list, composer (text), send button.
+- Right panel: contact summary, assignment, archive/unarchive, unread count, IDs.
+
+### Behaviors
+- Load accounts → load conversations → select conversation → load messages.
+- Send outbound message:
+  - persists DB first (outbound message row) ✅
+  - then calls internal route `POST /api/whatsapp/send` ✅
+  - updates message status based on API response ✅
+- Inbound webhook ingestion:
+  - creates/updates contact, conversation, message (idempotent) ✅
+  - updates unread count + last message time ✅
+- Assignment + archive operations update DB + UI immediately.
+- Solid error handling + logging + loading states everywhere.
+
 ---
 
-1) **Feature Summary**
-- Goal: Deliver a WhatsApp-style chat workspace (contacts, conversations, messages) with UX parity to the provided reference: left nav for contacts/conversations, center chat thread with messages, right-side details, using existing tables in `db/schema.ts` (contacts, conversations, messages, whatsapp_accounts). Include robust loading spinners and error handling/logging for data fetch and mutations.
-- Primary flows: list contacts & conversations, search/filter, open conversation, load messages with spinner, send message, mark read/update unread counts, assign user, archive/unarchive, create/update contact, link to WhatsApp account, handle errors with toasts/logging.
-- Assumptions: Multi-tenant Postgres with Drizzle; existing auth/session provides `companyId`, `userId`, `role`; scale up to 50k messages/conversation with cursor pagination; media sending handled via separate provider but placeholder mutation exists; read receipts tracked via `messages.status`.
+## 1) Constraints / Non-Negotiables
 
-2) **Domain Model**
-- Entities: Contact (person with phone/name/email/tags); Conversation (thread keyed by phone & whatsapp account, unread, status, lastMessageAt); Message (inbound/outbound item with content/status/timestamp); WhatsappAccount (sending credentials) for routing.
-- Relationships: Company 1→N Contacts; Contact 1→N Conversations; Conversation 1→N Messages; WhatsappAccount 1→N Conversations.
-- State machine: Conversation `status`: active → archived (can unarchive to active). Message `status`: sent → delivered → read | failed (outbound); inbound default delivered/read set by webhook.
+1. **Do NOT remove or relocate existing components in features folder.**
+2. Respect multi-tenant scope: **companyId must filter everything**.
+3. DB writes must be **idempotent** for webhook events (dedupe by provider messageId).
+4. Mutations must implement:
+   - optimistic UI updates where safe
+   - rollback on error
+5. Every server-side operation must have:
+   - structured logging
+   - consistent error model (AppFailure)
+   - no unhandled throws leaking to client
 
-3) **Database Design (Postgres/Drizzle)**
-- Reuse existing tables in `db/schema.ts`:
-  - `contactsTable`: id, companyId, phoneNumber (unique per company), name/email/notes/tags, audit timestamps.
-  - `conversationsTable`: id, companyId, contactId?, phoneNumber, whatsappAccountId?, lastMessageAt, unreadCount, status, assignedTo?, audit timestamps.
-  - `messagesTable`: id, companyId, conversationId, messageId, direction, type, content(jsonb), status, timestamp, createdAt.
-  - `whatsappAccountsTable`: existing for routing and metadata.
-- Constraints: FK companyId to companies; conversation.contactId FK; messages.conversationId FK. Maintain unreadCount via service transactionally.
-- Audit fields: createdAt/updatedAt present; add createdBy/updatedBy only if required later (not in current schema). Soft delete via `status` + `isActive` at account level; no deletions planned.
-- Multi-tenant: every query filters by `companyId`; enforce in services and actions.
-- Indexes (already present) used:
-  - Conversations: `(companyId,lastMessageAt desc,id asc)` for inbox sorting; `(companyId,status,lastMessageAt)` for archive filter; `(companyId,phoneNumber)` lookup; contact/assigned/account indexes.
-  - Messages: `(conversationId,timestamp desc,id asc)` for thread pagination; `messageId` lookup.
-  - Contacts: `(companyId,phoneNumber)` and `(companyId,name,id)` for search/sort.
-- Migration steps: none required initially; if adding createdBy/updatedBy later, alter tables with nullable columns + backfill.
+---
 
-4) **API / Server Actions Contract**
-- `listContactsAction(input)` → cursor list. Input: `{ cursor?, limit=20, search?, tags?, companyId }`; Output: `{ items, nextCursor, hasMore }`.
-- `listConversationsAction(input)` → inbox. Input: `{ cursor?, limit=20, status?=active|archived, search?, assignedTo?, whatsappAccountId?, companyId }`; Output: `{ items, nextCursor, hasMore }`.
-- `getConversationAction({ id, companyId })` → conversation + contact summary.
-- `listMessagesAction(input)` → thread messages. Input: `{ conversationId, cursor?, limit=30, companyId }`; Output: `{ items, nextCursor, hasMore }`. Must show spinner while loading.
-- `sendMessageAction(input)` → create outbound message and push to provider. Input: `{ conversationId, type, content, companyId, userId }`; Output: `{ message }`. Errors mapped to Result.fail with logged context.
-- `markConversationReadAction({ id, companyId })` → sets unreadCount=0 and updates lastMessageAt.
-- `archiveConversationAction({ id, companyId, userId, archive: boolean })`.
-- `assignConversationAction({ id, assignedTo, companyId, userId })`.
-- `upsertContactAction({ id?, phoneNumber, name?, email?, tags?, companyId, userId })`.
-- Error cases: validation failures, not found, unauthorized role, cross-tenant access, cursor decode errors, provider send failures, constraint conflicts (duplicate phone), inactive whatsapp account.
-- Pagination strategy: cursor base64 `{ sortFieldValue (lastMessageAt or timestamp), id }`, fetch `limit+1`.
+## 2) Data Model (Use Existing Schemas)
 
-5) **Validation (Zod)**
-- Schemas:
-  - `contactCreate/UpdateClientSchema`, `contactServerSchema` (adds companyId/userId), `contactListClientSchema` (cursor/search/tags).
-  - `conversationListClientSchema` (cursor/status/search/assignedTo/account), `conversationIdSchema`.
-  - `messageListClientSchema` (conversationId, cursor, limit), `sendMessageClientSchema` (type enum text|image|document|template, content object with URL/text validation), `markReadSchema`, `archiveSchema`, `assignSchema`.
-- Refinements: phoneNumber E.164; content required fields per type; cursor base64 parse with safe guard.
-- Shared response schemas: `contactResponse`, `conversationResponse`, `messageResponse`, list response with cursor metadata.
+Use the tables already defined in your Drizzle schema (pasted file):
+- `whatsapp_accounts`
+- `contacts`
+- `conversations`
+- `messages`
+- `audit_logs`
 
-6) **Service Layer Plan**
-- `ContactService`: list (search on name/phone via ILIKE, company filter), upsert (phone unique per company), getByPhone helper. Returns `Result.ok/notFound/conflict/fail`.
-- `ConversationService`: list with status filter + search (phone/contact name join optional via subselect), cursor pagination on lastMessageAt; getById; createOrGetByPhone (used when receiving inbound); updateUnreadCount; archive; assign. Transactions around unreadCount resets and assignments.
-- `MessageService`: list by conversationId with cursor on timestamp; send (insert outbound message, update conversation lastMessageAt/unreadCount=0 for outbound, performance log external send), recordInbound (for webhooks), updateStatus by messageId. Always select only needed columns and filter by companyId.
-- Safety: transactions where updating conversation + message; use `Result` pattern; wrap each public method with performance logger and structured error logs (operation, companyId, conversationId, userId, messageId).
+> If any index/constraint is missing, only **add** (do not remove existing columns).
 
-7) **UI/UX Plan (shadcn + TanStack)**
-- Screens/components:
-  - `/protected/inbox` page with three-column layout: left conversations list, center chat thread, right contact/details/assignment.
-  - Components: `ConversationList` (React Query + skeleton list + spinner while fetching), `ConversationListItem` (unread badge), `ChatThread` (message bubbles, timestamps, status icons), `MessageComposer` (input + send button with loading state), `ContactSidebar` (contact details + edit form), `AssignDropdown`, `ArchiveToggle`, `ErrorBoundary` blocks for each column.
-- Loading states: skeleton rows for conversation list; spinner overlay when fetching messages or switching conversation; disable send while sending; optimistic append outbound message with pending state.
-- Error states: inline alert + retry buttons for list/messages; Sonner toasts for mutations; structured console/info logs for debugging (without leaking secrets).
-- Table/filters: search box (debounced) for conversations and contacts; filter pills for status (Active/Archived), account dropdown, assigned user filter.
-- Accessibility: focus management when opening thread; aria-live for toasts.
+### Recommended (Add if missing)
+- Unique dedupe for messages:
+  - `UNIQUE(company_id, conversation_id, message_id)` (or `UNIQUE(company_id, message_id)` if globally unique)
+- Indexes:
+  - conversations list: `(company_id, status, last_message_at desc, id)`
+  - messages list: `(company_id, conversation_id, timestamp desc, id)`
 
-8) **Hook/State Plan**
-- React Query hooks:
-  - `useContacts(params)` (useInfiniteQuery, key: ["contacts", params]).
-  - `useConversations(params)` (useInfiniteQuery, cursor-based). On params change, show spinner until data ready.
-  - `useMessages(conversationId)` (useInfiniteQuery with cursor). Keep previous data while loading new pages; show spinner on initial.
-  - Mutations: `useSendMessage`, `useMarkRead`, `useArchiveConversation`, `useAssignConversation`, `useUpsertContact` — each invalidates relevant caches (`conversations`, `messages`, `contacts`).
-- Local state: selectedConversationId, composer text, attachment draft; no Zustand unless needed; optimistic outbound message append with rollback on error.
-- Error handling: mutation onError -> toast + log with context; query onError -> show error component + retry.
+---
 
-9) **Security & Compliance**
-- All actions wrapped with session/role guard; enforce `companyId` scoping in services. Viewer cannot mutate; Agent cannot archive/delete contacts unless permitted; Admin/Manager can mutate all.
-- Do not log message content when erroring; log only metadata (ids, types). Mask access tokens.
-- Validate phone numbers and content to prevent injection; escape search inputs.
+## 3) Standard Result + Error Shape
 
-10) **Testing Plan**
-- Unit tests: cursor pagination math for conversations/messages; sendMessage updates conversation lastMessageAt/unread; archive toggles status; assign updates assignedTo with company scoping; contact upsert handles duplicate phone conflict.
-- Integration tests: server actions with mocked session ensure tenant isolation and role checks; inbound message handling updates unread count; markRead zeroes unread.
-- UI tests: conversation list loading spinner, message thread spinner on switch, send message success/error toasts, optimistic append rollback, archive/assign flows, contact edit modal validation.
-- Edge cases: long threads (pagination >5 pages), zero results, concurrent send failure, cursor tampering, archived conversations still load messages read-only.
+### Result
+All services/actions return:
+```ts
+type Result<T> = { success: true; data: T } | { success: false; error: AppFailure };
+```
 
-11) **Performance & Observability**
-- Query risks: large message history; always paginate with `(timestamp desc, id asc)` index; limit 30/page; avoid N+1 by selecting contact names via join only when needed.
-- Index recap: reuse existing indexes in `db/schema.ts` for conversations/messages/contacts; consider future partial index on `status='archived'` if archive-heavy tenants.
-- Logging/metrics: performance logger around service methods; structured logs for validation errors and provider failures; increment counters for send success/fail; measure message load latency.
-- Debounce search inputs (300ms) to avoid query storms; cache conversations/messages with React Query; batch invalidations.
+### AppFailure
+```ts
+type AppFailure = {
+  code:
+    | "UNAUTHORIZED"
+    | "FORBIDDEN"
+    | "NOT_FOUND"
+    | "VALIDATION"
+    | "CONFLICT"
+    | "DB_ERROR"
+    | "PROVIDER_ERROR"
+    | "UNKNOWN";
+  message: string;
+  details?: Record<string, unknown>;
+  retryable?: boolean;
+};
+```
 
-12) **Delivery Checklist**
-- Files/folders to create:
-  - `features/conversations/schemas/*.ts` (contact, conversation, message DTOs)
-  - `features/conversations/services/{contact.service.ts,conversation.service.ts,message.service.ts}`
-  - `features/conversations/actions/*.ts`
-  - `features/conversations/hooks/{use-contacts.ts, use-conversations.ts, use-messages.ts, use-send-message.ts}`
-  - `features/conversations/components/{conversation-list.tsx, conversation-list-item.tsx, chat-thread.tsx, message-composer.tsx, contact-sidebar.tsx, assign-dropdown.tsx, archive-toggle.tsx}`
-  - Page: `app/(protected)/inbox/page.tsx`
-  - Tests under `features/conversations/__tests__/`
-- Order: schemas → services → actions → hooks → components/page → tests → smoke build.
-- Definition of Done: multi-tenant scoping enforced, spinners on conversation/message loading, robust error handling + logging (no sensitive data), cursor pagination working, toasts wired, tests pass, lint passes.
+UI handling rules:
+- Queries: inline error block + Retry button
+- Mutations: toast error + keep UI stable
+- Provider error: retryable true
+
+---
+
+## 4) Build Order (AI IDE MUST FOLLOW)
+
+1) **Types + Zod schemas**  
+2) **Services** (DB + tx + logging + audit)  
+3) **Internal API route** `/api/whatsapp/send` (provider integration)  
+4) **Server Actions** (validate → service)  
+5) **React Query hooks**  
+6) **UI components & page wiring**  
+7) **Webhook route** (inbound + status updates)  
+8) **Polling refresh**  
+9) **Tests** + lint fix pass  
+
+---
+
+## 5) Types (Domain Contracts)
+
+Create domain types (match DB fields):
+- `WhatsAppAccountItem`
+- `ConversationListItem` (includes `unreadCount`, `lastMessagePreview`, `lastMessageAt`, `contact`)
+- `ConversationDetails`
+- `MessageItem` (direction, type, content, status, timestamp)
+- `ContactDetails`
+
+Acceptance:
+- No `any` in domain types.
+
+---
+
+## 6) Zod Validation (Inputs)
+
+Create Zod schemas:
+
+### Conversations
+- `listConversationsInput`
+  - `{ companyId, accountId?, status?: "active"|"archived", search?: string, cursor?, limit }`
+- `getConversationDetailsInput`
+  - `{ companyId, conversationId }`
+- `markConversationReadInput`
+  - `{ companyId, conversationId }`
+- `assignConversationInput`
+  - `{ companyId, conversationId, assignedTo?: number|null }`
+- `archiveConversationInput`
+  - `{ companyId, conversationId, status: "active"|"archived" }`
+
+### Messages
+- `listMessagesInput`
+  - `{ companyId, conversationId, cursor?, limit }`
+- `sendTextMessageInput`
+  - `{ companyId, conversationId, content: { text: string } }`
+
+Acceptance:
+- Actions reject invalid payload with `VALIDATION`.
+
+---
+
+## 7) Services (DB + Logging + Audit)
+
+### 7.1 WhatsAppAccountsService
+- `listAccounts(companyId)` → active accounts, default first.
+
+### 7.2 ConversationsService
+- `listConversations(input)`
+  - Filters: companyId, accountId optional, status, search (phone/name)
+  - Sort: `lastMessageAt DESC, id ASC`
+  - Cursor pagination
+- `getConversationDetails(companyId, conversationId)`
+  - Join contact + assigned user fields (if your user table exists).
+- `markRead(companyId, conversationId, userId)`
+  - Set `unreadCount=0`, update `updatedAt`
+  - Insert `audit_logs` (entityType="conversations", action="mark_read")
+- `setAssignment(companyId, conversationId, assignedTo, userId)`
+  - Update assignedTo
+  - Audit log action: assign/unassign
+- `setArchiveStatus(companyId, conversationId, status, userId)`
+  - Update status
+  - Audit log action: archive/unarchive
+
+### 7.3 MessagesService
+- `listMessages(companyId, conversationId, cursor, limit)`
+  - Sort: `timestamp DESC, id ASC` → reverse in UI for chat order
+
+#### 7.3.1 sendTextMessage (CRITICAL FLOW)
+Implement **exactly** in this order:
+
+**Step A — Load conversation**
+1. Fetch conversation by `(companyId, conversationId)`  
+2. If not found → `NOT_FOUND`
+
+**Step B — Insert message + update conversation (DB transaction)**
+3. Start DB transaction  
+4. Insert new message row:
+   - direction: `"outbound"`
+   - type: `"text"`
+   - content: `{ text }`
+   - status: `"pending"` (or `"sent"` if you prefer)
+   - timestamp: `now()`
+   - `conversationId`, `companyId`
+5. Update conversation:
+   - `lastMessageAt = now()`
+   - optionally store `lastMessagePreview`
+6. Insert audit log:
+   - entityType: `"messages"`, action: `"send_attempt"`
+   - include metadata: conversationId, phone number (safe)
+7. Commit transaction
+
+**Step C — Send via internal API route**
+8. Call internal route (server-to-server):
+   - `POST /api/whatsapp/send`
+   - Use absolute URL via `process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"`
+   - Body:
+     - companyId
+     - recipientPhoneNumber: `convo.phoneNumber`
+     - text: input.content.text
+9. If API returns success:
+   - Update message row:
+     - set `status="sent"` (or provider returned status)
+     - set `messageId` from provider response (if any)
+   - Insert audit log: action `"send_success"`
+10. If API returns error:
+   - Update message row:
+     - set `status="failed"`
+   - Insert audit log: action `"send_failed"` + error summary
+   - Return `Result.fail(PROVIDER_ERROR, retryable=true)`
+
+**Step D — Return**
+11. Return saved message (with latest status/messageId)
+
+**Notes**
+- Do not retry automatically.
+- Do not expose provider tokens in logs.
+- This flow guarantees the UI always shows the outgoing bubble even if provider fails.
+
+---
+
+## 8) Internal API Route: `POST /api/whatsapp/send`
+
+Create route handler at `app/api/whatsapp/send/route.ts`:
+
+### Input
+```ts
+{
+  companyId: number;
+  recipientPhoneNumber: string;
+  text: string;
+}
+```
+
+### Steps
+1. Validate input (Zod)
+2. Resolve WhatsApp account credentials/config by companyId (and default account if needed)
+3. Call your provider (WASenderAPI / Meta Graph)
+4. Map provider response → normalized response:
+```ts
+{ success: true, data: { providerMessageId?: string, raw?: unknown } }
+or
+{ success: false, error: { code: "PROVIDER_ERROR", message, details?, retryable: true } }
+```
+
+### Error handling
+- Provider non-2xx → return `PROVIDER_ERROR`
+- Unexpected → return `UNKNOWN` with safe details
+
+Acceptance:
+- Calling this route directly from a server action works reliably.
+
+---
+
+## 9) Server Actions (thin, validated)
+
+Create actions:
+- `whatsappAccounts.actions.ts` → listAccounts
+- `conversations.actions.ts` → listConversations, getConversationDetails, markRead, setAssignment, setArchiveStatus
+- `messages.actions.ts` → listMessages, sendTextMessage
+
+Rules:
+- Validate Zod in action
+- Derive/verify companyId from session if available (otherwise trust input but keep consistent)
+- Never call provider from actions directly; **only MessagesService calls `/api/whatsapp/send`**.
+
+---
+
+## 10) Client Hooks (React Query)
+
+Query keys:
+- `["whatsapp", "accounts", companyId]`
+- `["whatsapp", "conversations", companyId, accountId, status, search]`
+- `["whatsapp", "conversation", companyId, conversationId]`
+- `["whatsapp", "messages", companyId, conversationId]`
+
+### Mutations (required behaviors)
+- Send message:
+  - Optimistic insert temp bubble in messages cache
+  - On success: replace temp with real message
+  - On fail: mark temp as failed OR replace with failed message
+- Mark read:
+  - Optimistically set unreadCount = 0 in list cache + detail cache
+- Assign/archive:
+  - Optimistically update list item + details cache
+
+### Refresh
+- Poll conversations list every 5–10s
+- Poll selected conversation messages every 3–5s while visible/focused
+
+---
+
+## 11) UI (Match Screenshot)
+
+### Layout
+- LeftPanel (25%):
+  - Account selector
+  - Status filter
+  - Search input
+  - ConversationList
+- CenterPanel (50%):
+  - ConversationHeader
+  - MessagesThread
+  - Composer
+- RightPanel (25%):
+  - ContactCard
+  - AssignmentControl
+  - ArchiveButton
+  - Metadata
+
+### Required UI States (implement all)
+Left panel:
+- loading → skeleton list
+- error → retry
+- empty → “No conversations”
+- infinite loading more
+
+Center:
+- no selection → placeholder
+- loading messages → skeleton bubbles
+- error → retry
+- sending message → disable button, spinner
+- failed message bubble → show retry button (re-trigger send)
+
+Right:
+- loading skeleton
+- error fallback
+- contact missing → display phone only
+
+---
+
+## 12) Webhook Route (Inbound + Status Updates)
+
+Create route e.g. `app/api/webhooks/whatsapp/route.ts`:
+
+### Inbound message (idempotent)
+In ONE transaction:
+1. Resolve companyId via `phone_number_id` → `whatsapp_accounts`
+2. Upsert contact by `(companyId, phoneNumber)`
+3. Upsert conversation by `(companyId, phoneNumber, whatsappAccountId)`
+4. Insert message (inbound) with `messageId` (dedupe via unique constraint)
+5. Update conversation:
+   - lastMessageAt
+   - unreadCount += 1
+6. Commit
+
+### Status updates
+- Find message by provider messageId → update status
+
+Logging:
+- Perf logging always
+- No audit logs needed for webhooks
+
+---
+
+## 13) Tests (Minimum Set)
+
+Service tests:
+- `listConversations` pagination stable ordering
+- `sendTextMessage`:
+  - success: status becomes sent
+  - failure: status becomes failed and returns PROVIDER_ERROR
+- webhook inbound idempotency (duplicate event doesn’t duplicate message)
+
+Action tests:
+- Zod invalid payload → VALIDATION
+
+UI smoke:
+- no conversation selected state
+- error state render
+
+---
+
+## 14) Acceptance Checklist
+
+- [ ] Conversations list loads and filters (account/status/search)
+- [ ] Selecting conversation loads details + messages
+- [ ] Sending message:
+  - [ ] inserts message row immediately
+  - [ ] calls `POST /api/whatsapp/send`
+  - [ ] updates message status to sent/failed
+- [ ] Inbound webhook creates message and increments unread count
+- [ ] Mark read resets unread count
+- [ ] Assign + archive work with optimistic UI
+- [ ] No console errors; all lint clean
+
+---
+
+## 15) Exact Snippet Requirement (internal API call)
+
+MessagesService MUST use this pattern (adjust naming only):
+
+```ts
+// 3) Send via internal API route
+const apiRes = await fetch(
+  new URL("/api/whatsapp/send", process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
+  {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify({
+      companyId: input.companyId,
+      recipientPhoneNumber: convo.phoneNumber,
+      text: input.content?.text ?? "",
+    }),
+  }
+);
+```
+
+---
+
+**End of plan.**

@@ -236,13 +236,25 @@ export class MessageService {
       }
     );
 
+    const apiData = await apiRes.json().catch(() => ({}));
+
     if (!apiRes.ok) {
-      const errText = await apiRes.text();
+      const errText =
+        apiData && typeof apiData === "object" && "error" in apiData
+          ? (apiData as any).error
+          : "Failed to send message";
       return Result.fail(`WhatsApp send failed: ${errText}`);
     }
-    const apiData = await apiRes.json().catch(() => ({}));
+
+    if (apiData && typeof apiData === "object" && "success" in apiData && apiData.success === false) {
+      const errText = "error" in apiData ? (apiData as any).error ?? "Unknown error" : "Unknown error";
+      return Result.fail(`WhatsApp send failed: ${errText}`);
+    }
+
     const sentMessageId =
-      apiData?.data?.messages?.[0]?.id ?? crypto.randomUUID();
+      (apiData && typeof apiData === "object" && "messageId" in apiData && typeof apiData.messageId === "string"
+        ? apiData.messageId
+        : null) ?? crypto.randomUUID();
 
     // 4) Insert outbound message and update conversation lastMessageAt/unreadCount
     const result = await db.transaction(async (tx) => {

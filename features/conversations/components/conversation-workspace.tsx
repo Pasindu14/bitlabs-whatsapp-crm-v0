@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -8,11 +8,14 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { ConversationList } from "./conversation-list";
 import { ChatThread } from "./chat-thread";
 import { MessageComposer } from "./message-composer";
 import { ContactSidebar } from "./contact-sidebar";
+import { useSendMessage } from "../hooks/use-send-new-message";
 import type { ConversationResponse } from "../schemas/conversation.schema";
 
 interface ConversationWorkspaceProps {
@@ -28,45 +31,77 @@ export function ConversationWorkspace({ companyId }: ConversationWorkspaceProps)
   const [modalOpen, setModalOpen] = useState(false);
   const [newPhone, setNewPhone] = useState("");
   const [newText, setNewText] = useState("");
-  const [sending, setSending] = useState(false);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [textError, setTextError] = useState<string | null>(null);
 
+  const sendMessage = useSendMessage();
   const filters = useMemo(
     () => ({ status: statusFilter, assignedTo: undefined, whatsappAccountId: undefined }),
     [statusFilter]
   );
+
+  const validateInputs = useCallback(() => {
+    let isValid = true;
+    setPhoneError(null);
+    setTextError(null);
+
+    if (!newPhone.trim()) {
+      setPhoneError("Phone number is required");
+      isValid = false;
+    } else if (newPhone.trim().length < 3) {
+      setPhoneError("Phone number must be at least 3 characters");
+      isValid = false;
+    }
+
+    if (!newText.trim()) {
+      setTextError("Message is required");
+      isValid = false;
+    } else if (newText.trim().length === 0) {
+      setTextError("Message cannot be empty");
+      isValid = false;
+    }
+
+    return isValid;
+  }, [newPhone, newText]);
 
   const handleSendNew = async () => {
     if (!companyId) {
       toast.error("Missing company context");
       return;
     }
-    if (!newPhone.trim() || !newText.trim()) {
-      toast.error("Phone and message are required");
+
+    if (!validateInputs()) {
       return;
     }
-    setSending(true);
+
     try {
-      const res = await fetch("/api/whatsapp/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyId,
-          recipientPhoneNumber: newPhone.trim(),
-          text: newText.trim(),
-        }),
+      const result = await sendMessage.mutateAsync({
+        phoneNumber: newPhone.trim(),
+        text: newText.trim(),
       });
-      const data = await res.json();
-      if (!res.ok || !data?.success) {
-        throw new Error(data?.error || "Send failed");
-      }
-      toast.success("Message sent");
+
       setModalOpen(false);
       setNewPhone("");
       setNewText("");
+      setPhoneError(null);
+      setTextError(null);
+
+      if (result?.conversationId) {
+        setSelectedId(result.conversationId);
+      }
     } catch (err: any) {
-      toast.error(err?.message || "Send failed");
-    } finally {
-      setSending(false);
+      const errorMessage = err?.message || "Failed to send message";
+      toast.error(errorMessage);
+    }
+  };
+
+  const handleModalOpenChange = (open: boolean) => {
+    setModalOpen(open);
+    if (!open) {
+      setNewPhone("");
+      setNewText("");
+      setPhoneError(null);
+      setTextError(null);
     }
   };
 
@@ -76,37 +111,75 @@ export function ConversationWorkspace({ companyId }: ConversationWorkspaceProps)
         <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/50">
           <span className="text-sm font-semibold text-[#25D366]">WhatsApp</span>
           <div className="flex items-center gap-2">
-            <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+            <Dialog open={modalOpen} onOpenChange={handleModalOpenChange}>
               <DialogTrigger asChild>
                 <Button size="icon" variant="outline">
                   +
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                  <DialogTitle>New chat</DialogTitle>
+                  <DialogTitle>Send new message</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-3 py-2">
-                  <Input
-                    placeholder="Phone number (E.164)"
-                    value={newPhone}
-                    onChange={(e) => setNewPhone(e.target.value)}
-                    disabled={sending}
-                  />
-                  <Textarea
-                    placeholder="Message"
-                    value={newText}
-                    onChange={(e) => setNewText(e.target.value)}
-                    rows={4}
-                    disabled={sending}
-                  />
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Phone number</label>
+                    <Input
+                      placeholder="E.164 format (e.g., +1234567890)"
+                      value={newPhone}
+                      onChange={(e) => {
+                        setNewPhone(e.target.value);
+                        if (phoneError) setPhoneError(null);
+                      }}
+                      disabled={sendMessage.isPending}
+                      className={phoneError ? "border-red-500" : ""}
+                    />
+                    {phoneError && (
+                      <Alert className="border-red-500 bg-red-50">
+                        <AlertCircle className="h-4 w-4 text-red-600" />
+                        <AlertDescription className="text-red-600 text-sm">{phoneError}</AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Message</label>
+                    <Textarea
+                      placeholder="Type your message here..."
+                      value={newText}
+                      onChange={(e) => {
+                        setNewText(e.target.value);
+                        if (textError) setTextError(null);
+                      }}
+                      rows={4}
+                      disabled={sendMessage.isPending}
+                      className={textError ? "border-red-500" : ""}
+                    />
+                    {textError && (
+                      <Alert className="border-red-500 bg-red-50">
+                        <AlertCircle className="h-4 w-4 text-red-600" />
+                        <AlertDescription className="text-red-600 text-sm">{textError}</AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="ghost" onClick={() => setModalOpen(false)} disabled={sending}>
+                  <Button
+                    variant="ghost"
+                    onClick={() => handleModalOpenChange(false)}
+                    disabled={sendMessage.isPending}
+                  >
                     Cancel
                   </Button>
-                  <Button onClick={handleSendNew} disabled={sending}>
-                    {sending ? <Spinner className="h-4 w-4" /> : "Send"}
+                  <Button onClick={handleSendNew} disabled={sendMessage.isPending}>
+                    {sendMessage.isPending ? (
+                      <>
+                        <Spinner className="h-4 w-4 mr-2" />
+                        Sending...
+                      </>
+                    ) : (
+                      "Send"
+                    )}
                   </Button>
                 </DialogFooter>
               </DialogContent>
