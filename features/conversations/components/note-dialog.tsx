@@ -80,7 +80,7 @@ export function NoteDialog() {
         <div className="flex-1 overflow-y-auto space-y-4 py-4">
           <NoteEditor content={content} onChange={setContent} />
 
-          <div className="flex items-center space-x-2">
+          {/* <div className="flex items-center space-x-2">
             <Checkbox
               id="pin"
               checked={isPinned}
@@ -89,7 +89,7 @@ export function NoteDialog() {
             <Label htmlFor="pin" className="cursor-pointer">
               Pin this note
             </Label>
-          </div>
+          </div> */}
         </div>
 
         <DialogFooter>

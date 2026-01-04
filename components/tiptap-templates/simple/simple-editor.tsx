@@ -67,13 +67,15 @@ import { useCursorVisibility } from "@/hooks/use-cursor-visibility"
 // --- Components ---
 import { ThemeToggle } from "@/components/tiptap-templates/simple/theme-toggle"
 
-// --- Lib ---
-import { handleImageUpload, MAX_FILE_SIZE } from "@/lib/tiptap-utils"
-
 // --- Styles ---
 import "@/components/tiptap-templates/simple/simple-editor.scss"
 
-import content from "@/components/tiptap-templates/simple/data/content.json"
+
+interface SimpleEditorProps {
+  content?: string
+  onChange?: (content: string) => void
+  fitContainer?: boolean
+}
 
 const MainToolbarContent = ({
   onHighlighterClick,
@@ -147,9 +149,6 @@ const MainToolbarContent = ({
 
       {isMobile && <ToolbarSeparator />}
 
-      <ToolbarGroup>
-        <ThemeToggle />
-      </ToolbarGroup>
     </>
   )
 }
@@ -183,7 +182,7 @@ const MobileToolbarContent = ({
   </>
 )
 
-export function SimpleEditor() {
+export function SimpleEditor({ content: initialContent = "", onChange, fitContainer = false }: SimpleEditorProps = {}) {
   const isMobile = useIsBreakpoint()
   const { height } = useWindowSize()
   const [mobileView, setMobileView] = useState<"main" | "highlighter" | "link">(
@@ -215,21 +214,22 @@ export function SimpleEditor() {
       TaskList,
       TaskItem.configure({ nested: true }),
       Highlight.configure({ multicolor: true }),
-      Image,
       Typography,
       Superscript,
       Subscript,
       Selection,
-      ImageUploadNode.configure({
-        accept: "image/*",
-        maxSize: MAX_FILE_SIZE,
-        limit: 3,
-        upload: handleImageUpload,
-        onError: (error) => console.error("Upload failed:", error),
-      }),
     ],
-    content,
+    content: initialContent,
+    onUpdate: ({ editor }) => {
+      onChange?.(editor.getHTML())
+    },
   })
+
+  useEffect(() => {
+    if (editor && initialContent !== editor.getHTML()) {
+      editor.commands.setContent(initialContent)
+    }
+  }, [initialContent, editor])
 
   const rect = useCursorVisibility({
     editor,
@@ -243,7 +243,7 @@ export function SimpleEditor() {
   }, [isMobile, mobileView])
 
   return (
-    <div className="simple-editor-wrapper">
+    <div className={`simple-editor-wrapper ${fitContainer ? 'fit-container' : ''}`}>
       <EditorContext.Provider value={{ editor }}>
         <Toolbar
           ref={toolbarRef}
