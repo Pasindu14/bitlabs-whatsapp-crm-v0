@@ -15,7 +15,7 @@ export default function ClientProviders({
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Toaster position="top-right" expand />
+      <Toaster position="top-center" expand />
       <NuqsAdapter>{children}</NuqsAdapter>
     </QueryClientProvider>
   );
