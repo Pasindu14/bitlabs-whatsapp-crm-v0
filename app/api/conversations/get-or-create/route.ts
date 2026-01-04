@@ -32,9 +32,9 @@ export async function POST(request: NextRequest) {
       phoneNumber
     );
 
-    if (!contactResult.success) {
+    if (!contactResult.success || !contactResult.data) {
       return NextResponse.json(
-        { error: contactResult.error },
+        { error: contactResult.error || 'Failed to create contact' },
         { status: 500 }
       );
     }

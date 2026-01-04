@@ -304,3 +304,73 @@ export const messageRelations = relations(messagesTable, ({ one }) => ({
   }),
 }));
 
+// Conversation Notes Table
+export const conversationNotesTable = pgTable("conversation_notes", {
+    // Primary key
+    id: serial("id").primaryKey(),
+
+    // Foreign keys
+    conversationId: integer("conversation_id")
+        .references(() => conversationsTable.id)
+        .notNull(),
+    companyId: integer("company_id")
+        .references(() => companiesTable.id)
+        .notNull(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    createdBy: integer("created_by").references((): any => usersTable.id).notNull(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    updatedBy: integer("updated_by").references((): any => usersTable.id),
+
+    // Content
+    content: text("content").notNull(),
+
+    // Metadata
+    isPinned: boolean("is_pinned").notNull().default(false),
+
+    // Audit fields
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+        .defaultNow()
+        .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
+}, (table) => [
+    // Primary query index: conversation_id + is_active
+    index("conversation_notes_conversation_active_idx")
+        .on(table.conversationId.asc(), table.isActive.desc()),
+
+    // Company-scoped queries
+    index("conversation_notes_company_id_idx")
+        .on(table.companyId.asc()),
+
+    // Find notes by creator
+    index("conversation_notes_created_by_idx")
+        .on(table.createdBy.asc()),
+
+    // Composite index for sorting (newest first)
+    index("conversation_notes_conversation_created_idx")
+        .on(table.conversationId.asc(), table.createdAt.desc(), table.id.desc()),
+
+    // Pinned notes (show first)
+    index("conversation_notes_conversation_pinned_idx")
+        .on(table.conversationId.asc(), table.isPinned.desc(), table.createdAt.desc()),
+
+    // Company + conversation filtering
+    index("conversation_notes_company_conversation_idx")
+        .on(table.companyId.asc(), table.conversationId.asc()),
+]);
+
+export const conversationNoteRelations = relations(conversationNotesTable, ({ one }) => ({
+  conversation: one(conversationsTable, {
+    fields: [conversationNotesTable.conversationId],
+    references: [conversationsTable.id],
+  }),
+  creator: one(usersTable, {
+    fields: [conversationNotesTable.createdBy],
+    references: [usersTable.id],
+  }),
+  updater: one(usersTable, {
+    fields: [conversationNotesTable.updatedBy],
+    references: [usersTable.id],
+  }),
+}));
+

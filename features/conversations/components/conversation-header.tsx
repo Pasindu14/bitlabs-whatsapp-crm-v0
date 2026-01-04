@@ -3,16 +3,20 @@
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useConversation } from '../hooks/conversation-hooks';
-import { MoreVertical, Pencil, User } from 'lucide-react';
+import { useUserNoteForConversation } from '../hooks/note-hooks';
+import { useNoteStore } from '../store/note-store';
+import { MoreVertical, Pencil, User, StickyNote, Edit3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { UpdateContactNameDialog } from './update-contact-name-dialog';
 import { AssignUserDialog } from './assign-user-dialog';
+import { NoteDialog } from './note-dialog';
 
 interface ConversationHeaderProps {
   conversationId: number | null;
@@ -21,6 +25,8 @@ interface ConversationHeaderProps {
 export function ConversationHeader({ conversationId }: ConversationHeaderProps) {
   const session = useSession();
   const { data: selectedConversation } = useConversation(conversationId);
+  const { data: userNote } = useUserNoteForConversation(conversationId);
+  const { openDialog } = useNoteStore();
   const contact = selectedConversation?.contact as { id?: number; name?: string | null; phone?: string } | undefined;
   const displayName = contact?.name || contact?.phone || '';
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
@@ -38,6 +44,18 @@ export function ConversationHeader({ conversationId }: ConversationHeaderProps) 
     setIsAssignUserDialogOpen(true);
   };
 
+  const handleAddNote = () => {
+    if (conversationId) {
+      openDialog(conversationId);
+    }
+  };
+
+  const handleEditNote = () => {
+    if (conversationId) {
+      openDialog(conversationId);
+    }
+  };
+
   return (
     <>
       <div className="border-b p-4 flex items-center justify-between">
@@ -49,6 +67,11 @@ export function ConversationHeader({ conversationId }: ConversationHeaderProps) 
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleAddNote} className="text-xs">
+              <StickyNote className="mr-2 h-3 w-3" />
+              Add/Edit Note
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleAssignUser} className="text-xs">
               <User className="mr-2 h-3 w-3" />
               Assign User
@@ -76,6 +99,7 @@ export function ConversationHeader({ conversationId }: ConversationHeaderProps) 
           currentAssignedUserId={assignedToUserId ?? null}
         />
       )}
+      <NoteDialog />
     </>
   );
 }
