@@ -10,7 +10,8 @@ import { ConversationSearch } from '@/features/conversations/components/conversa
 import { MessageInput } from '@/features/conversations/components/message-input';
 import { NewMessageModal } from '@/features/conversations/components/new-message-modal';
 import { useConversationStore } from '@/features/conversations/store/conversation-store';
-import { useSendNewMessage, useConversations } from '@/features/conversations/hooks/conversation-hooks';
+import { useSendNewMessage, useConversations, useWhatsAppMessageHistory } from '@/features/conversations/hooks/conversation-hooks';
+import { useDefaultWhatsappAccount } from '@/features/whatsapp-accounts/hooks/use-whatsapp-accounts';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
@@ -33,16 +34,18 @@ export default function ConversationsPage() {
     limit: 50,
   });
 
+  const { data: defaultAccount } = useDefaultWhatsappAccount();
+
+
   const handleSendMessage = () => {
     if (!selectedConversationId) {
       toast.error('Please select a conversation first');
       return;
     }
 
-    // This would need to be implemented with the conversation's contact phone
-    // For now, we'll show a placeholder
     toast.info('Message sending not yet implemented for existing conversations');
   };
+
 
   return (
     <div className="flex h-screen gap-4 bg-background">

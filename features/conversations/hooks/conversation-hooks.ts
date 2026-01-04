@@ -9,6 +9,7 @@ import {
   deleteConversationAction,
   archiveConversationAction,
   unarchiveConversationAction,
+  getWhatsAppMessageHistoryAction,
 } from '../actions/conversation-actions';
 import {
   sendNewMessageAction,
@@ -22,6 +23,7 @@ import type {
   ClearConversationInput,
   DeleteConversationInput,
   ArchiveConversationInput,
+  GetWhatsAppMessageHistoryInput,
 } from '../schemas/conversation-schema';
 
 export const conversationKeys = {
@@ -38,6 +40,7 @@ export const messageKeys = {
   list: (conversationId: number) => [...messageKeys.lists(), conversationId] as const,
   details: () => [...messageKeys.all, 'detail'] as const,
   detail: (id: number) => [...messageKeys.details(), id] as const,
+  whatsappHistory: (phoneNumberId: string) => [...messageKeys.all, 'whatsapp-history', phoneNumberId] as const,
 };
 
 export function useConversations(filter: ConversationListFilter) {
@@ -211,5 +214,30 @@ export function useUnarchiveConversation() {
       queryClient.invalidateQueries({ queryKey: conversationKeys.all });
     },
     retry: false,
+  });
+}
+
+export function useWhatsAppMessageHistory(whatsappAccountId: number | null) {
+  return useQuery({
+    queryKey: messageKeys.whatsappHistory(whatsappAccountId?.toString() || ''),
+    queryFn: async () => {
+      if (!whatsappAccountId) {
+        throw new Error('whatsappAccountId is required');
+      }
+
+      const result = await getWhatsAppMessageHistoryAction({
+        whatsappAccountId,
+        limit: 50,
+      });
+
+      if (!result.ok) {
+        throw new Error(result.error || 'Failed to fetch message history');
+      }
+
+      return result.data;
+    },
+    enabled: !!whatsappAccountId,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
   });
 }

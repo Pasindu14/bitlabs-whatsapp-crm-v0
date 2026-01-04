@@ -221,3 +221,13 @@ export const messageListOutputSchema = z.object({
 });
 
 export type MessageListOutput = z.infer<typeof messageListOutputSchema>;
+
+// Get WhatsApp message history schema
+export const getWhatsAppMessageHistorySchema = z.object({
+  whatsappAccountId: z.number().int().positive(),
+  limit: z.number().int().min(1).max(100).optional(),
+  before: z.string().optional(),
+  after: z.string().optional(),
+});
+
+export type GetWhatsAppMessageHistoryInput = z.infer<typeof getWhatsAppMessageHistorySchema>;

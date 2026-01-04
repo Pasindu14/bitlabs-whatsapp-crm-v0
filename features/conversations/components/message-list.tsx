@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
+import { useEffect, useRef } from 'react';
 
 interface MessageListProps {
   conversationId: number;
@@ -17,6 +18,13 @@ export function MessageList({ conversationId }: MessageListProps) {
   const { data, isLoading, error, hasNextPage, fetchNextPage, isFetchingNextPage } =
     useConversationMessages(conversationId);
   const { mutate: retryMessage, isPending: isRetrying } = useRetryFailedMessage();
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  const messages = data?.pages.flatMap((page) => page?.messages || []) || [];
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+  }, [messages.length, conversationId]);
 
   if (isLoading) {
     return (
@@ -40,8 +48,6 @@ export function MessageList({ conversationId }: MessageListProps) {
       </div>
     );
   }
-
-  const messages = data?.pages.flatMap((page) => page?.messages || []) || [];
 
   if (messages.length === 0) {
     return (
@@ -108,6 +114,8 @@ export function MessageList({ conversationId }: MessageListProps) {
             </div>
           </div>
         ))}
+
+        <div ref={bottomRef} aria-hidden />
 
         {hasNextPage && (
           <div className="flex justify-center pt-4">

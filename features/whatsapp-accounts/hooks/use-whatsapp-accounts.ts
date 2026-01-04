@@ -1,6 +1,6 @@
 "use client";
 
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   listWhatsappAccountsAction,
@@ -126,4 +126,23 @@ export function sortingStateToParams(sorting: SortingState | undefined): {
     sortField: (first.id === "name" ? "name" : "createdAt") as WhatsappAccountListInput["sortField"],
     sortOrder: (first.desc ? "desc" : "asc") as WhatsappAccountListInput["sortOrder"],
   };
+}
+
+export function useDefaultWhatsappAccount() {
+  return useQuery({
+    queryKey: [WHATSAPP_ACCOUNTS_KEY, "default"],
+    queryFn: async () => {
+      const result = await listWhatsappAccountsAction({
+        isActive: true,
+        limit: 100,
+        sortField: "createdAt",
+        sortOrder: "desc",
+      });
+      if (!result.ok) throw new Error(result.error);
+      const defaultAccount = result.data?.items?.find((acc) => acc.isDefault);
+      return defaultAccount || result.data?.items?.[0] || null;
+    },
+    staleTime: 300000,
+    refetchOnWindowFocus: false,
+  });
 }

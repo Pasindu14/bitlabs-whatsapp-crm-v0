@@ -15,6 +15,7 @@ import {
   assignConversationSchema,
   conversationListOutputSchema,
   messageListOutputSchema,
+  getWhatsAppMessageHistorySchema,
   type ConversationListFilter,
   type MarkAsReadInput,
   type GetMessagesInput,
@@ -28,6 +29,7 @@ import {
   type MessageListOutput,
   type ConversationResponse,
   type ContactResponse,
+  type GetWhatsAppMessageHistoryInput,
 } from '../schemas/conversation-schema';
 
 export const listConversationsAction = withAction<ConversationListFilter, ConversationListOutput>(
@@ -153,4 +155,21 @@ export const unarchiveConversationAction = withAction<ArchiveConversationInput, 
     );
   },
   { schema: archiveConversationSchema }
+);
+
+export const getWhatsAppMessageHistoryAction = withAction<GetWhatsAppMessageHistoryInput, unknown>(
+  'conversations.getWhatsAppMessageHistory',
+  async (auth, input) => {
+    const result = await ConversationService.getWhatsAppMessageHistory(
+      input.whatsappAccountId,
+      auth.companyId,
+      input.limit,
+      input.before,
+      input.after
+    );
+    if (!result.isOk) return result;
+
+    return Result.ok(result.data, 'WhatsApp message history loaded');
+  },
+  { schema: getWhatsAppMessageHistorySchema }
 );

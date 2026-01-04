@@ -1,5 +1,5 @@
 import { db } from '@/db/drizzle';
-import { contactsTable, conversationsTable, messagesTable } from '@/db/schema';
+import { contactsTable, conversationsTable, messagesTable, whatsappAccountsTable } from '@/db/schema';
 import { eq, and, desc, lt } from 'drizzle-orm';
 import { createPerformanceLogger } from '@/lib/logger';
 import { Result } from '@/lib/result';
@@ -350,7 +350,7 @@ export class ConversationService {
 
       logger.complete(items.length);
       return Result.ok({
-        messages: items as MessageResponse[],
+        messages: [...items].reverse() as MessageResponse[],
         previousCursor: nextCursor,
         hasMore,
       }, 'Messages loaded');
@@ -611,6 +611,69 @@ export class ConversationService {
     } catch (error) {
       logger.fail(error as Error);
       return Result.internal('Failed to unarchive conversation');
+    }
+  }
+
+  static async getWhatsAppMessageHistory(
+    whatsappAccountId: number,
+    companyId: number,
+    limit?: number,
+    before?: string,
+    after?: string
+  ): Promise<ServiceResult<unknown>> {
+    const logger = createPerformanceLogger('ConversationService.getWhatsAppMessageHistory', {
+      context: { whatsappAccountId, companyId },
+    });
+    try {
+      const [account] = await db
+        .select({
+          phoneNumberId: whatsappAccountsTable.phoneNumberId,
+          accessToken: whatsappAccountsTable.accessToken,
+        })
+        .from(whatsappAccountsTable)
+        .where(
+          and(
+            eq(whatsappAccountsTable.id, whatsappAccountId),
+            eq(whatsappAccountsTable.companyId, companyId)
+          )
+        )
+        .limit(1);
+
+      if (!account) {
+        logger.fail(new Error('WhatsApp account not found'));
+        return Result.fail('WhatsApp account not found');
+      }
+
+      const queryParams = new URLSearchParams({
+        companyId: companyId.toString(),
+        phoneNumberId: account.phoneNumberId,
+        accessToken: account.accessToken,
+      });
+      if (limit) queryParams.append('limit', limit.toString());
+      if (before) queryParams.append('before', before);
+      if (after) queryParams.append('after', after);
+
+      const response = await fetch(
+        `http://localhost:3000/api/conversations/get-message-history?${queryParams.toString()}`,
+        {
+          method: 'GET',
+        }
+      );
+
+      console.log(response);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData?.error || `HTTP ${response.status}`;
+        logger.fail(new Error(errorMessage));
+        return Result.fail(errorMessage);
+      }
+
+      const data = await response.json();
+      logger.complete();
+      return Result.ok(data, 'WhatsApp message history loaded');
+    } catch (error) {
+      logger.fail(error as Error);
+      return Result.internal('Failed to fetch WhatsApp message history');
     }
   }
 }

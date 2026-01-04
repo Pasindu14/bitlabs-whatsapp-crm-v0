@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useConversation } from '../hooks/conversation-hooks';
-import { MoreVertical } from 'lucide-react';
+import { MoreVertical, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -37,7 +37,10 @@ export function ConversationHeader({ conversationId }: ConversationHeaderProps) 
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={handleUpdateName}>Update Name</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleUpdateName}>
+              <Pencil className="mr-2 h-3 w-3" />
+              Update Name
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
