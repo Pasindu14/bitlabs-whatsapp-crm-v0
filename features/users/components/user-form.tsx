@@ -69,7 +69,6 @@ export function UserForm({
 
 
   const error = form.formState.errors;
-  console.log(error);
   return (
     <Form {...form}>
       <form

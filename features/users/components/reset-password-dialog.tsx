@@ -22,16 +22,17 @@ export function ResetPasswordDialog({
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent>
         <DialogHeader>
+          <DialogTitle>Reset Password</DialogTitle>
           <Button
             variant="destructive"
             onClick={onConfirm}
             disabled={loading}
             className="w-full"
           >
-            {loading ? "Resetting..." : "Reset password to abc@123"}
+            {loading ? "Resetting..." : "Reset password"}
           </Button>
           <DialogDescription>
-            {userName ? `${userName}'s` : "This user's"} password will be set to <strong>abc@123</strong>. Continue?
+            {userName ? `${userName}'s` : "This user's"} password will be reset to a new temporary password. Continue?
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

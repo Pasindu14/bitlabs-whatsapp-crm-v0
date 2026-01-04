@@ -42,51 +42,71 @@ export class UserService {
 
       const passwordHash = await UserService.hashPassword(data.temporaryPassword);
 
-      const [newUser] = await db
-        .insert(usersTable)
-        .values({
-          name: data.name,
-          email: data.email,
-          role: data.role,
-          passwordHash,
+      const result = await db.transaction(async (tx) => {
+        const [newUser] = await tx
+          .insert(usersTable)
+          .values({
+            name: data.name,
+            email: data.email,
+            role: data.role,
+            passwordHash,
+            companyId: data.companyId,
+            createdBy: data.userId,
+            updatedBy: data.userId,
+            isActive: data.isActive ?? true,
+          })
+          .returning({
+            id: usersTable.id,
+            name: usersTable.name,
+            email: usersTable.email,
+            role: usersTable.role,
+            companyId: usersTable.companyId,
+            isActive: usersTable.isActive,
+            startDateTime: usersTable.startDateTime,
+            createdAt: usersTable.createdAt,
+            updatedAt: usersTable.updatedAt,
+            createdBy: usersTable.createdBy,
+            updatedBy: usersTable.updatedBy,
+          });
+
+        await tx.insert(auditLogsTable).values({
+          entityType: "user",
+          entityId: newUser.id,
           companyId: data.companyId,
-          createdBy: data.userId,
-          updatedBy: data.userId,
-          isActive: data.isActive ?? true,
-        })
-        .returning({
-          id: usersTable.id,
-          name: usersTable.name,
-          email: usersTable.email,
-          role: usersTable.role,
-          companyId: usersTable.companyId,
-          isActive: usersTable.isActive,
-          startDateTime: usersTable.startDateTime,
-          createdAt: usersTable.createdAt,
-          updatedAt: usersTable.updatedAt,
-          createdBy: usersTable.createdBy,
-          updatedBy: usersTable.updatedBy,
+          action: "CREATE_ATTEMPT",
+          oldValues: null,
+          newValues: {
+            name: newUser.name,
+            email: newUser.email,
+            role: newUser.role,
+            isActive: newUser.isActive,
+          },
+          changedBy: data.userId,
+          changeReason: "User created",
         });
 
+        return newUser;
+      });
+
       const userResponse: UserResponse = {
-        ...newUser,
-        role: newUser.role as UserResponse["role"],
+        ...result,
+        role: result.role as UserResponse["role"],
       };
 
       await db.insert(auditLogsTable).values({
         entityType: "user",
-        entityId: newUser.id,
+        entityId: result.id,
         companyId: data.companyId,
-        action: "CREATE",
+        action: "CREATE_SUCCESS",
         oldValues: null,
         newValues: {
-          name: newUser.name,
-          email: newUser.email,
-          role: newUser.role,
-          isActive: newUser.isActive,
+          name: result.name,
+          email: result.email,
+          role: result.role,
+          isActive: result.isActive,
         },
         changedBy: data.userId,
-        changeReason: "User created",
+        changeReason: "User created successfully",
       });
 
       perf.complete(1);
@@ -99,7 +119,7 @@ export class UserService {
         entityId: null,
         companyId: data.companyId,
         userId: data.userId,
-        action: "CREATE",
+        action: "CREATE_FAILED",
         error: errorMessage,
       });
       return Result.internal("Failed to create user");
@@ -172,29 +192,6 @@ export class UserService {
       if (data.role !== undefined) updateData.role = data.role;
       if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
-      const [updatedUser] = await db
-        .update(usersTable)
-        .set(updateData)
-        .where(eq(usersTable.id, data.id))
-        .returning({
-          id: usersTable.id,
-          name: usersTable.name,
-          email: usersTable.email,
-          role: usersTable.role,
-          companyId: usersTable.companyId,
-          isActive: usersTable.isActive,
-          startDateTime: usersTable.startDateTime,
-          createdAt: usersTable.createdAt,
-          updatedAt: usersTable.updatedAt,
-          createdBy: usersTable.createdBy,
-          updatedBy: usersTable.updatedBy,
-        });
-
-      const userResponse: UserResponse = {
-        ...updatedUser,
-        role: updatedUser.role as UserResponse["role"],
-      };
-
       const oldValues = {
         name: existingUser.name,
         email: existingUser.email,
@@ -202,26 +199,75 @@ export class UserService {
         isActive: existingUser.isActive,
       };
 
-      const newValues: {
+      const result = await db.transaction(async (tx) => {
+        const [updatedUser] = await tx
+          .update(usersTable)
+          .set(updateData)
+          .where(eq(usersTable.id, data.id))
+          .returning({
+            id: usersTable.id,
+            name: usersTable.name,
+            email: usersTable.email,
+            role: usersTable.role,
+            companyId: usersTable.companyId,
+            isActive: usersTable.isActive,
+            startDateTime: usersTable.startDateTime,
+            createdAt: usersTable.createdAt,
+            updatedAt: usersTable.updatedAt,
+            createdBy: usersTable.createdBy,
+            updatedBy: usersTable.updatedBy,
+          });
+
+        const newValues: {
+          name?: string;
+          email?: string;
+          role?: string;
+          isActive?: boolean;
+        } = {};
+        if (data.name !== undefined) newValues.name = data.name;
+        if (data.email !== undefined) newValues.email = data.email;
+        if (data.role !== undefined) newValues.role = data.role;
+        if (data.isActive !== undefined) newValues.isActive = data.isActive;
+
+        await tx.insert(auditLogsTable).values({
+          entityType: "user",
+          entityId: updatedUser.id,
+          companyId: data.companyId,
+          action: "UPDATE_ATTEMPT",
+          oldValues,
+          newValues,
+          changedBy: data.userId,
+          changeReason: "User updated",
+        });
+
+        return updatedUser;
+      });
+
+      const userResponse: UserResponse = {
+        ...result,
+        role: result.role as UserResponse["role"],
+      };
+
+      const finalNewValues: {
         name?: string;
         email?: string;
         role?: string;
         isActive?: boolean;
       } = {};
-      if (data.name !== undefined) newValues.name = data.name;
-      if (data.email !== undefined) newValues.email = data.email;
-      if (data.role !== undefined) newValues.role = data.role;
-      if (data.isActive !== undefined) newValues.isActive = data.isActive;
+      if (data.name !== undefined) finalNewValues.name = data.name;
+      if (data.email !== undefined) finalNewValues.email = data.email;
+      if (data.role !== undefined) finalNewValues.role = data.role;
+      if (data.isActive !== undefined) finalNewValues.isActive = data.isActive;
 
       await db.insert(auditLogsTable).values({
         entityType: "user",
-        entityId: updatedUser.id,
+        entityId: result.id,
         companyId: data.companyId,
-        action: "UPDATE",
+        action: "UPDATE_SUCCESS",
         oldValues,
-        newValues,
+        newValues: finalNewValues,
         changedBy: data.userId,
-        changeReason: "User updated",
+        changeReason: "User updated successfully",
       });
 
       perf.complete(1);
@@ -234,7 +280,7 @@ export class UserService {
         entityId: data.id,
         companyId: data.companyId,
         userId: data.userId,
-        action: "UPDATE",
+        action: "UPDATE_FAILED",
         error: errorMessage,
       });
       return Result.internal("Failed to update user");
@@ -429,42 +475,59 @@ export class UserService {
         return Result.badRequest("User already has the requested status");
       }
 
-      const [updatedUser] = await db
-        .update(usersTable)
-        .set({
-          isActive: data.isActive,
-          updatedBy: data.userId,
-          updatedAt: new Date(),
-        })
-        .where(eq(usersTable.id, data.id))
-        .returning({
-          id: usersTable.id,
-          name: usersTable.name,
-          email: usersTable.email,
-          role: usersTable.role,
-          companyId: usersTable.companyId,
-          isActive: usersTable.isActive,
-          startDateTime: usersTable.startDateTime,
-          createdAt: usersTable.createdAt,
-          updatedAt: usersTable.updatedAt,
-          createdBy: usersTable.createdBy,
-          updatedBy: usersTable.updatedBy,
+      const oldValues = { isActive: existingUser.isActive };
+
+      const result = await db.transaction(async (tx) => {
+        const [updatedUser] = await tx
+          .update(usersTable)
+          .set({
+            isActive: data.isActive,
+            updatedBy: data.userId,
+            updatedAt: new Date(),
+          })
+          .where(eq(usersTable.id, data.id))
+          .returning({
+            id: usersTable.id,
+            name: usersTable.name,
+            email: usersTable.email,
+            role: usersTable.role,
+            companyId: usersTable.companyId,
+            isActive: usersTable.isActive,
+            startDateTime: usersTable.startDateTime,
+            createdAt: usersTable.createdAt,
+            updatedAt: usersTable.updatedAt,
+            createdBy: usersTable.createdBy,
+            updatedBy: usersTable.updatedBy,
+          });
+
+        await tx.insert(auditLogsTable).values({
+          entityType: "user",
+          entityId: updatedUser.id,
+          companyId: data.companyId,
+          action: "TOGGLE_STATUS_ATTEMPT",
+          oldValues,
+          newValues: { isActive: updatedUser.isActive },
+          changedBy: data.userId,
+          changeReason: data.isActive ? "User activated" : "User deactivated",
         });
 
+        return updatedUser;
+      });
+
       const userResponse: UserResponse = {
-        ...updatedUser,
-        role: updatedUser.role as UserResponse["role"],
+        ...result,
+        role: result.role as UserResponse["role"],
       };
 
       await db.insert(auditLogsTable).values({
         entityType: "user",
-        entityId: updatedUser.id,
+        entityId: result.id,
         companyId: data.companyId,
-        action: "TOGGLE_STATUS",
-        oldValues: { isActive: existingUser.isActive },
-        newValues: { isActive: updatedUser.isActive },
+        action: "TOGGLE_STATUS_SUCCESS",
+        oldValues,
+        newValues: { isActive: result.isActive },
         changedBy: data.userId,
-        changeReason: data.isActive ? "User activated" : "User deactivated",
+        changeReason: data.isActive ? "User activated successfully" : "User deactivated successfully",
       });
 
       perf.complete(1);
@@ -480,7 +543,7 @@ export class UserService {
         entityId: data.id,
         companyId: data.companyId,
         userId: data.userId,
-        action: "TOGGLE_STATUS",
+        action: "TOGGLE_STATUS_FAILED",
         error: errorMessage,
       });
       return Result.internal("Failed to toggle user status");
@@ -518,29 +581,44 @@ export class UserService {
       const temporaryPassword = UserService.generateTemporaryPassword();
       const passwordHash = await UserService.hashPassword(temporaryPassword);
 
-      await db
-        .update(usersTable)
-        .set({
-          passwordHash,
-          updatedBy: data.userId,
-          updatedAt: new Date(),
-        })
-        .where(eq(usersTable.id, data.id));
+      const result = await db.transaction(async (tx) => {
+        await tx
+          .update(usersTable)
+          .set({
+            passwordHash,
+            updatedBy: data.userId,
+            updatedAt: new Date(),
+          })
+          .where(eq(usersTable.id, data.id));
+
+        await tx.insert(auditLogsTable).values({
+          entityType: "user",
+          entityId: existingUser.id,
+          companyId: data.companyId,
+          action: "RESET_PASSWORD_ATTEMPT",
+          oldValues: null,
+          newValues: { email: existingUser.email },
+          changedBy: data.userId,
+          changeReason: "Password reset requested",
+        });
+
+        return { id: existingUser.id, temporaryPassword };
+      });
 
       await db.insert(auditLogsTable).values({
         entityType: "user",
-        entityId: existingUser.id,
+        entityId: result.id,
         companyId: data.companyId,
-        action: "RESET_PASSWORD",
+        action: "RESET_PASSWORD_SUCCESS",
         oldValues: null,
         newValues: { email: existingUser.email },
         changedBy: data.userId,
-        changeReason: "Password reset requested",
+        changeReason: "Password reset successfully",
       });
 
       perf.complete(1);
       return Result.ok(
-        { id: existingUser.id, temporaryPassword },
+        result,
         "Password reset successfully"
       );
     } catch (error) {
@@ -551,7 +629,7 @@ export class UserService {
         entityId: data.id,
         companyId: data.companyId,
         userId: data.userId,
-        action: "RESET_PASSWORD",
+        action: "RESET_PASSWORD_FAILED",
         error: errorMessage,
       });
       return Result.internal("Failed to reset password");

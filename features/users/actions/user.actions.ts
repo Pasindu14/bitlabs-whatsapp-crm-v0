@@ -20,7 +20,8 @@ import type { AuthSession } from "@/lib/server-action-helper";
 
 type ListInput = z.infer<typeof userListClientSchema>;
 type CreateInput = z.infer<typeof userCreateClientSchema>;
-type UpdateInput = z.infer<typeof userUpdateClientSchema> & { id: number };
+const userUpdateWithIdSchema = userUpdateClientSchema.extend({ id: z.number().int() });
+type UpdateInput = z.infer<typeof userUpdateWithIdSchema>;
 type ToggleInput = z.infer<typeof userToggleStatusClientSchema>;
 type ResetPasswordInput = z.infer<typeof userResetPasswordClientSchema>;
 
@@ -52,7 +53,7 @@ export const listUsersAction = withAction<ListInput, UserListResponse>(
 export const getUserAction = withAction<z.infer<typeof userGetServerSchema>, UserResponse>(
   "users.get",
   async (auth, input) => {
-    const result = await UserService.get({
+    const result = await UserService.getById({
       ...input,
       companyId: auth.companyId,
     });
@@ -113,14 +114,10 @@ export const updateUserAction = withAction<UpdateInput, UserResponse>(
 
     return result;
   },
-  {
-    schema: userUpdateClientSchema.extend({
-      id: z.number().int(),
-    }),
-  }
+  { schema: userUpdateWithIdSchema }
 );
 
-export const toggleUserStatusAction = withAction<ToggleInput, null>(
+export const toggleUserStatusAction = withAction<ToggleInput, UserResponse>(
   "users.toggleStatus",
   async (auth, input) => {
     const actorRole = resolveActorRole(auth);
@@ -145,7 +142,7 @@ export const toggleUserStatusAction = withAction<ToggleInput, null>(
   { schema: userToggleStatusClientSchema.extend({ id: z.number().int() }) }
 );
 
-export const resetUserPasswordAction = withAction<ResetPasswordInput, { resetToken: string }>(
+export const resetUserPasswordAction = withAction<ResetPasswordInput, { id: number; temporaryPassword: string }>(
   "users.resetPassword",
   async (auth, input) => {
     const actorRole = resolveActorRole(auth);

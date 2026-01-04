@@ -17,21 +17,16 @@ import type {
 } from "../schemas/user.schema";
 import type { SortingState } from "@tanstack/react-table";
 
-const USERS_KEY = "users";
+export const userKeys = {
+  all: ["users"] as const,
+  lists: () => [...userKeys.all, "list"] as const,
+  list: (params: UserListInput) => [...userKeys.lists(), params] as const,
+  details: () => [...userKeys.all, "detail"] as const,
+  detail: (id: number) => [...userKeys.details(), id] as const,
+} as const;
 
-function buildQueryKey(params: UserListInput & { search?: string }) {
-  return [
-    USERS_KEY,
-    {
-      cursor: params.cursor,
-      limit: params.limit,
-      search: params.search,
-      isActive: params.isActive,
-      role: params.role,
-      sortField: params.sortField,
-      sortOrder: params.sortOrder,
-    },
-  ];
+function buildQueryKey(params: UserListInput) {
+  return userKeys.list(params);
 }
 
 export function useUsers(params: UserListInput) {
@@ -47,6 +42,9 @@ export function useUsers(params: UserListInput) {
     },
     initialPageParam: params.cursor ?? undefined,
     getNextPageParam: (lastPage) => lastPage?.nextCursor ?? undefined,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 }
 
@@ -60,9 +58,10 @@ export function useCreateUser() {
     },
     onSuccess: () => {
       toast.success("User created");
-      queryClient.invalidateQueries({ queryKey: [USERS_KEY] });
+      queryClient.invalidateQueries({ queryKey: userKeys.all });
     },
     onError: (error: Error) => toast.error(error.message),
+    retry: false,
   });
 }
 
@@ -76,9 +75,10 @@ export function useUpdateUser() {
     },
     onSuccess: () => {
       toast.success("User updated");
-      queryClient.invalidateQueries({ queryKey: [USERS_KEY] });
+      queryClient.invalidateQueries({ queryKey: userKeys.all });
     },
     onError: (error: Error) => toast.error(error.message),
+    retry: false,
   });
 }
 
@@ -92,9 +92,10 @@ export function useToggleUserStatus(targetActive: boolean) {
     },
     onSuccess: () => {
       toast.success(`User ${targetActive ? "activated" : "deactivated"}`);
-      queryClient.invalidateQueries({ queryKey: [USERS_KEY] });
+      queryClient.invalidateQueries({ queryKey: userKeys.all });
     },
     onError: (error: Error) => toast.error(error.message),
+    retry: false,
   });
 }
 
@@ -107,14 +108,15 @@ export function useResetUserPassword() {
       return result.data;
     },
     onSuccess: (data) => {
-      if (data?.resetToken) {
-        toast.success(`Reset token: ${data.resetToken}`);
+      if (data?.temporaryPassword) {
+        toast.success(`Temporary password: ${data.temporaryPassword}`);
       } else {
         toast.success("Password reset initiated");
       }
-      queryClient.invalidateQueries({ queryKey: [USERS_KEY] });
+      queryClient.invalidateQueries({ queryKey: userKeys.all });
     },
     onError: (error: Error) => toast.error(error.message),
+    retry: false,
   });
 }
 
