@@ -1,6 +1,7 @@
 import { db } from '@/db/drizzle';
 import { contactsTable, conversationsTable, messagesTable } from '@/db/schema';
 import { eq, and, desc, lt } from 'drizzle-orm';
+import { createPerformanceLogger } from '@/lib/logger';
 import type {
   ContactResponse,
   ConversationResponse,
@@ -51,8 +52,10 @@ export class ConversationService {
     phone: string,
     name?: string
   ): Promise<ServiceResult<ContactResponse>> {
+    const logger = createPerformanceLogger('ConversationService.ensureContact', {
+      context: { companyId, phone },
+    });
     try {
-      // Query for existing contact
       const existing = await db.query.contactsTable.findFirst({
         where: and(
           eq(contactsTable.companyId, companyId),
@@ -61,13 +64,13 @@ export class ConversationService {
       });
 
       if (existing) {
+        logger.complete(1);
         return {
           success: true,
           data: existing as ContactResponse,
         };
       }
 
-      // Create new contact
       const [newContact] = await db
         .insert(contactsTable)
         .values({
@@ -79,11 +82,13 @@ export class ConversationService {
         })
         .returning();
 
+      logger.complete(1);
       return {
         success: true,
         data: newContact as ContactResponse,
       };
-    } catch {
+    } catch (error) {
+      logger.fail(error as Error);
       return {
         success: false,
         error: 'Failed to ensure contact',
@@ -96,8 +101,10 @@ export class ConversationService {
     companyId: number,
     contactId: number
   ): Promise<ServiceResult<ConversationResponse>> {
+    const logger = createPerformanceLogger('ConversationService.ensureConversation', {
+      context: { companyId, contactId },
+    });
     try {
-      // Query for existing conversation
       const existing = await db.query.conversationsTable.findFirst({
         where: and(
           eq(conversationsTable.companyId, companyId),
@@ -106,13 +113,13 @@ export class ConversationService {
       });
 
       if (existing) {
+        logger.complete(1);
         return {
           success: true,
           data: existing as ConversationResponse,
         };
       }
 
-      // Create new conversation
       const [newConversation] = await db
         .insert(conversationsTable)
         .values({
@@ -124,11 +131,13 @@ export class ConversationService {
         })
         .returning();
 
+      logger.complete(1);
       return {
         success: true,
         data: newConversation as ConversationResponse,
       };
-    } catch {
+    } catch (error) {
+      logger.fail(error as Error);
       return {
         success: false,
         error: 'Failed to ensure conversation',
@@ -140,6 +149,12 @@ export class ConversationService {
   static async createMessage(
     input: CreateMessageInput
   ): Promise<ServiceResult<MessageResponse>> {
+    const logger = createPerformanceLogger('ConversationService.createMessage', {
+      context: {
+        conversationId: input.conversationId,
+        companyId: input.companyId,
+      },
+    });
     try {
       const [newMessage] = await db
         .insert(messagesTable)
@@ -155,11 +170,13 @@ export class ConversationService {
         })
         .returning();
 
+      logger.complete(1);
       return {
         success: true,
         data: newMessage as MessageResponse,
       };
-    } catch {
+    } catch (error) {
+      logger.fail(error as Error);
       return {
         success: false,
         error: 'Failed to create message',
@@ -174,6 +191,9 @@ export class ConversationService {
     providerMessageId?: string,
     errorMessage?: string
   ): Promise<ServiceResult<void>> {
+    const logger = createPerformanceLogger('ConversationService.updateMessageStatus', {
+      context: { messageId, status },
+    });
     try {
       await db
         .update(messagesTable)
@@ -185,11 +205,14 @@ export class ConversationService {
         })
         .where(eq(messagesTable.id, messageId));
 
+      logger.complete();
+      logger.complete();
       return {
         success: true,
         data: undefined,
       };
-    } catch {
+    } catch (error) {
+      logger.fail(error as Error);
       return {
         success: false,
         error: 'Failed to update message status',
@@ -203,6 +226,9 @@ export class ConversationService {
     messageId: number,
     preview: string
   ): Promise<ServiceResult<void>> {
+    const logger = createPerformanceLogger('ConversationService.updateConversationLastMessage', {
+      context: { conversationId, messageId },
+    });
     try {
       await db
         .update(conversationsTable)
@@ -214,11 +240,13 @@ export class ConversationService {
         })
         .where(eq(conversationsTable.id, conversationId));
 
+      logger.complete();
       return {
         success: true,
         data: undefined,
       };
-    } catch {
+    } catch (error) {
+      logger.fail(error as Error);
       return {
         success: false,
         error: 'Failed to update conversation',
@@ -232,6 +260,9 @@ export class ConversationService {
     cursor?: string,
     limit: number = 50
   ): Promise<ServiceResult<MessagePage>> {
+    const logger = createPerformanceLogger('ConversationService.getConversationMessages', {
+      context: { conversationId, limit, ...(cursor ? { cursor } : {}) },
+    });
     try {
       const fetchLimit = limit + 1;
       let cursorCondition = undefined;
@@ -263,6 +294,7 @@ export class ConversationService {
         ? Buffer.from(`${items[items.length - 1].createdAt.getTime()}:${items[items.length - 1].id}`).toString('base64')
         : undefined;
 
+      logger.complete(items.length);
       return {
         success: true,
         data: {
@@ -271,7 +303,8 @@ export class ConversationService {
           hasMore,
         },
       };
-    } catch {
+    } catch (error) {
+      logger.fail(error as Error);
       return {
         success: false,
         error: 'Failed to fetch messages',
@@ -283,6 +316,14 @@ export class ConversationService {
   static async listConversations(
     filter: ConversationListFilter
   ): Promise<ServiceResult<ConversationPage>> {
+    const logger = createPerformanceLogger('ConversationService.listConversations', {
+      context: {
+        companyId: filter.companyId,
+        filterType: filter.filterType,
+        limit: filter.limit,
+        includeArchived: filter.includeArchived,
+      },
+    });
     try {
       const fetchLimit = filter.limit + 1;
       let cursorCondition = undefined;
@@ -349,6 +390,7 @@ export class ConversationService {
         ? Buffer.from(`${items[items.length - 1].lastMessageTime?.getTime() || 0}:${items[items.length - 1].id}`).toString('base64')
         : undefined;
 
+      logger.complete(items.length);
       return {
         success: true,
         data: {
@@ -357,7 +399,8 @@ export class ConversationService {
           hasMore,
         },
       };
-    } catch {
+    } catch (error) {
+      logger.fail(error as Error);
       return {
         success: false,
         error: 'Failed to list conversations',

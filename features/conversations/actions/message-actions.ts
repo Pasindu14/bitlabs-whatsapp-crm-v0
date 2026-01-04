@@ -30,16 +30,25 @@ export async function sendNewMessageAction(
       };
     }
 
+    
+  
     // Validate client input
     const validatedInput = sendNewMessageClientSchema.parse(input);
+  
 
     // Create server input with auth context
     const user = session.user as SessionUser;
+
+  
+
     const serverInput = sendNewMessageServerSchema.parse({
       ...validatedInput,
       companyId: typeof user.companyId === 'string' ? parseInt(user.companyId, 10) : user.companyId,
       userId: typeof user.id === 'string' ? parseInt(user.id, 10) : user.id,
     });
+
+    
+
 
     const result = await MessageService.sendNewMessage(serverInput);
 

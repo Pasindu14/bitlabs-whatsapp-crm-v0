@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { ConversationService } from './conversation-service';
 import type {
   SendNewMessageServerInput,
@@ -86,30 +87,27 @@ export class MessageService {
             code: 'WHATSAPP_SEND_FAILED',
           };
         } else {
-          const response = await fetch('/api/conversations/send-message', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
+          const baseUrl =
+            process.env.NEXT_PUBLIC_APP_URL ||
+            process.env.NEXTAUTH_URL ||
+            'http://localhost:3000';
+          const apiUrl = new URL('/api/conversations/send-message', baseUrl).toString();
+
+          const response = await axios.post<WhatsAppSendResponse>(
+            apiUrl,
+            {
               companyId: input.companyId,
               recipientPhoneNumber: input.phoneNumber,
               text: input.messageText,
               phoneNumberId,
               accessToken,
-            }),
-          });
+            },
+            {
+              headers: { 'Content-Type': 'application/json' },
+            }
+          );
 
-          if (response.ok) {
-            whatsappResponse = await response.json();
-          } else {
-            const errorData = await response.json().catch(() => ({}));
-            whatsappResponse = {
-              success: false,
-              error: errorData.error || `HTTP ${response.status}`,
-              code: 'WHATSAPP_SEND_FAILED',
-            };
-          }
+          whatsappResponse = response.data;
         }
       } catch (error) {
         whatsappResponse = {
