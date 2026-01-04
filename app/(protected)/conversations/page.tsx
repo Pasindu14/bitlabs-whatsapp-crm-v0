@@ -9,7 +9,7 @@ import { ConversationSearch } from '@/features/conversations/components/conversa
 import { MessageInput } from '@/features/conversations/components/message-input';
 import { NewMessageModal } from '@/features/conversations/components/new-message-modal';
 import { useConversationStore } from '@/features/conversations/store/conversation-store';
-import { useSendNewMessage } from '@/features/conversations/hooks/conversation-hooks';
+import { useSendNewMessage, useConversations } from '@/features/conversations/hooks/conversation-hooks';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
@@ -26,7 +26,20 @@ export default function ConversationsPage() {
   const { isPending: isSending } = useSendNewMessage();
 
   const sessionUser = session.data?.user as { companyId?: number } | undefined;
-  const companyId = sessionUser?.companyId || 0;
+  const { data: conversationsData } = useConversations({
+    companyId: sessionUser?.companyId || 0,
+    filterType,
+    searchTerm,
+    includeArchived: showArchivedSection,
+    limit: 50,
+  });
+
+  const selectedConversation = conversationsData?.conversations?.find(
+    (c) => c.id === selectedConversationId
+  );
+  const contact = selectedConversation?.contact as { name?: string | null; phone?: string } | undefined;
+  const displayName = contact?.name || contact?.phone || 'Unknown';
+
 
   const handleSendMessage = () => {
     if (!selectedConversationId) {
@@ -81,14 +94,14 @@ export default function ConversationsPage() {
           <>
             {/* Chat Header */}
             <div className="border-b p-4">
-              <h2 className="text-lg font-semibold">Conversation</h2>
+              <h2 className="text-lg font-semibold">{displayName}</h2>
             </div>
 
             {/* Messages */}
             <div className="flex-1 overflow-hidden">
               <MessageList
                 conversationId={selectedConversationId}
-                companyId={companyId}
+          
               />
             </div>
 

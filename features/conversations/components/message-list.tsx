@@ -10,12 +10,12 @@ import { toast } from 'sonner';
 
 interface MessageListProps {
   conversationId: number;
-  companyId: number;
+
 }
 
-export function MessageList({ conversationId, companyId }: MessageListProps) {
+export function MessageList({ conversationId }: MessageListProps) {
   const { data, isLoading, error, hasNextPage, fetchNextPage, isFetchingNextPage } =
-    useConversationMessages(conversationId, companyId);
+    useConversationMessages(conversationId);
   const { mutate: retryMessage, isPending: isRetrying } = useRetryFailedMessage();
 
   if (isLoading) {

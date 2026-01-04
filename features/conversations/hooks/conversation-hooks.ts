@@ -53,7 +53,7 @@ export function useConversations(filter: ConversationListFilter) {
   });
 }
 
-export function useConversationMessages(conversationId: number, companyId: number) {
+export function useConversationMessages(conversationId: number) {
   return useInfiniteQuery({
     queryKey: messageKeys.list(conversationId),
     queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
