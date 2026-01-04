@@ -39,6 +39,46 @@ interface ConversationPage {
 }
 
 export class ConversationService {
+  static async updateContactName(
+    contactId: number,
+    companyId: number,
+    name: string
+  ): Promise<ServiceResult<ContactResponse>> {
+    const logger = createPerformanceLogger('ConversationService.updateContactName', {
+      context: { contactId, companyId },
+    });
+    try {
+      const [updated] = await db
+        .update(contactsTable)
+        .set({
+          name,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(contactsTable.id, contactId), eq(contactsTable.companyId, companyId)))
+        .returning();
+
+      if (!updated) {
+        logger.fail(new Error('Contact not found'));
+        return Result.fail('Contact not found', { code: 'NOT_FOUND' });
+      }
+
+      await AuditLogService.log({
+        companyId,
+        userId: 0,
+        action: 'UPDATE',
+        resourceId: contactId,
+        entityType: 'contact',
+        newValues: { name },
+      });
+
+      logger.complete(1);
+      return Result.ok(updated as ContactResponse, 'Contact name updated');
+    } catch (error) {
+      logger.fail(error as Error);
+      return Result.internal('Failed to update contact name');
+    }
+  }
+
   static async ensureContact(
     companyId: number,
     phone: string,
@@ -234,6 +274,38 @@ export class ConversationService {
     }
   }
 
+  static async getConversation(
+    conversationId: number,
+    companyId: number
+  ): Promise<ServiceResult<ConversationResponse>> {
+    const logger = createPerformanceLogger('ConversationService.getConversation', {
+      context: { conversationId, companyId },
+    });
+    try {
+      const result = await db.query.conversationsTable.findFirst({
+        where: and(
+          eq(conversationsTable.id, conversationId),
+          eq(conversationsTable.companyId, companyId),
+          eq(conversationsTable.isActive, true)
+        ),
+        with: {
+          contact: true,
+        },
+      });
+
+      if (!result) {
+        logger.fail(new Error('Conversation not found'));
+        return Result.fail('Conversation not found', { code: 'NOT_FOUND' });
+      }
+
+      logger.complete(1);
+      return Result.ok(result as ConversationResponse, 'Conversation found');
+    } catch (error) {
+      logger.fail(error as Error);
+      return Result.internal('Failed to fetch conversation');
+    }
+  }
+
   static async getConversationMessages(
     conversationId: number,
     companyId: number,
@@ -289,11 +361,12 @@ export class ConversationService {
   }
 
   static async listConversations(
-    filter: ConversationListFilter
+    companyId: number,
+    filter: Omit<ConversationListFilter, 'companyId'>
   ): Promise<ServiceResult<ConversationPage>> {
     const logger = createPerformanceLogger('ConversationService.listConversations', {
       context: {
-        companyId: filter.companyId,
+        companyId,
         filterType: filter.filterType,
         limit: filter.limit,
         includeArchived: filter.includeArchived,
@@ -310,7 +383,7 @@ export class ConversationService {
       }
 
       const baseClauses = [
-        eq(conversationsTable.companyId, filter.companyId),
+        eq(conversationsTable.companyId, companyId),
         eq(conversationsTable.isActive, true),
         filter.includeArchived ? undefined : eq(conversationsTable.isArchived, false),
       ].filter(Boolean);

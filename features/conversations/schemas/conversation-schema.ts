@@ -42,7 +42,6 @@ export type SendNewMessageServerInput = z.infer<typeof sendNewMessageServerSchem
 
 // Conversation filter schema
 export const conversationFilterSchema = z.object({
-  companyId: z.number().int().positive(),
   filterType: z.enum(CONVERSATION_FILTER_TYPES),
   searchTerm: z.string().optional(),
   cursor: z.string().optional(),
@@ -77,6 +76,21 @@ export const getMessagesSchema = z.object({
 });
 
 export type GetMessagesInput = z.infer<typeof getMessagesSchema>;
+
+// Get conversation schema
+export const getConversationSchema = z.object({
+  conversationId: z.number().int().positive(),
+});
+
+export type GetConversationInput = z.infer<typeof getConversationSchema>;
+
+// Update contact name schema
+export const updateContactNameSchema = z.object({
+  contactId: z.number().int().positive(),
+  name: z.string().min(1).max(120).trim(),
+});
+
+export type UpdateContactNameInput = z.infer<typeof updateContactNameSchema>;
 
 // Clear conversation schema
 export const clearConversationSchema = z.object({

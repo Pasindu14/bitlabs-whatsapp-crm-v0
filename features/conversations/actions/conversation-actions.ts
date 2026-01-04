@@ -7,6 +7,8 @@ import {
   conversationFilterSchema,
   markAsReadSchema,
   getMessagesSchema,
+  getConversationSchema,
+  updateContactNameSchema,
   clearConversationSchema,
   deleteConversationSchema,
   archiveConversationSchema,
@@ -16,18 +18,22 @@ import {
   type ConversationListFilter,
   type MarkAsReadInput,
   type GetMessagesInput,
+  type GetConversationInput,
+  type UpdateContactNameInput,
   type ClearConversationInput,
   type DeleteConversationInput,
   type ArchiveConversationInput,
   type AssignConversationInput,
   type ConversationListOutput,
   type MessageListOutput,
+  type ConversationResponse,
+  type ContactResponse,
 } from '../schemas/conversation-schema';
 
 export const listConversationsAction = withAction<ConversationListFilter, ConversationListOutput>(
   'conversations.list',
   async (auth, filter) => {
-    const result = await ConversationService.listConversations(filter);
+    const result = await ConversationService.listConversations(auth.companyId, filter);
     if (!result.isOk) return result;
 
     const validated = conversationListOutputSchema.parse(result.data);
@@ -51,6 +57,35 @@ export const getConversationMessagesAction = withAction<GetMessagesInput, Messag
     return Result.ok(validated, 'Messages loaded');
   },
   { schema: getMessagesSchema }
+);
+
+export const getConversationAction = withAction<GetConversationInput, ConversationResponse>(
+  'conversations.get',
+  async (auth, input) => {
+    const result = await ConversationService.getConversation(
+      input.conversationId,
+      auth.companyId
+    );
+    if (!result.isOk) return result;
+
+    return Result.ok(result.data, 'Conversation loaded');
+  },
+  { schema: getConversationSchema }
+);
+
+export const updateContactNameAction = withAction<UpdateContactNameInput, ContactResponse>(
+  'conversations.updateContactName',
+  async (auth, input) => {
+    const result = await ConversationService.updateContactName(
+      input.contactId,
+      auth.companyId,
+      input.name
+    );
+    if (!result.isOk) return result;
+
+    return Result.ok(result.data, 'Contact name updated');
+  },
+  { schema: updateContactNameSchema }
 );
 
 export const markConversationAsReadAction = withAction<MarkAsReadInput, void>(

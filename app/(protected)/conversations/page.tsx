@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react';
 import { Plus } from 'lucide-react';
 import { ConversationList } from '@/features/conversations/components/conversation-list';
 import { MessageList } from '@/features/conversations/components/message-list';
+import { ConversationHeader } from '@/features/conversations/components/conversation-header';
 import { ConversationFilterChips } from '@/features/conversations/components/conversation-filter-chips';
 import { ConversationSearch } from '@/features/conversations/components/conversation-search';
 import { MessageInput } from '@/features/conversations/components/message-input';
@@ -25,21 +26,12 @@ export default function ConversationsPage() {
 
   const { isPending: isSending } = useSendNewMessage();
 
-  const sessionUser = session.data?.user as { companyId?: number } | undefined;
   const { data: conversationsData } = useConversations({
-    companyId: sessionUser?.companyId || 0,
     filterType,
     searchTerm,
     includeArchived: showArchivedSection,
     limit: 50,
   });
-
-  const selectedConversation = conversationsData?.conversations?.find(
-    (c) => c.id === selectedConversationId
-  );
-  const contact = selectedConversation?.contact as { name?: string | null; phone?: string } | undefined;
-  const displayName = contact?.name || contact?.phone || 'Unknown';
-
 
   const handleSendMessage = () => {
     if (!selectedConversationId) {
@@ -93,9 +85,7 @@ export default function ConversationsPage() {
         {selectedConversationId ? (
           <>
             {/* Chat Header */}
-            <div className="border-b p-4">
-              <h2 className="text-lg font-semibold">{displayName}</h2>
-            </div>
+            <ConversationHeader conversationId={selectedConversationId} />
 
             {/* Messages */}
             <div className="flex-1 overflow-hidden">

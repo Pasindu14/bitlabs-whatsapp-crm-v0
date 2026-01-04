@@ -23,9 +23,7 @@ export function ConversationList({
   const session = useSession();
   const { selectedConversationId, setSelectedConversation } = useConversationStore();
 
-  const sessionUser = session.data?.user as { companyId?: number } | undefined;
   const { data, isLoading, error } = useConversations({
-    companyId: sessionUser?.companyId || 0,
     filterType,
     searchTerm,
     includeArchived,

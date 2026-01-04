@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, useInfiniteQuery } from '@tansta
 import {
   listConversationsAction,
   getConversationMessagesAction,
+  getConversationAction,
   markConversationAsReadAction,
   assignConversationToUserAction,
   clearConversationAction,
@@ -68,6 +69,21 @@ export function useConversationMessages(conversationId: number) {
     getNextPageParam: (lastPage) => (lastPage?.hasMore ? lastPage.previousCursor : undefined),
     initialPageParam: undefined as string | undefined,
     staleTime: 10000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useConversation(conversationId: number | null) {
+  return useQuery({
+    queryKey: conversationKeys.detail(conversationId || 0),
+    queryFn: async () => {
+      if (!conversationId) throw new Error('Conversation ID is required');
+      const result = await getConversationAction({ conversationId });
+      if (!result.ok) throw new Error(result.error || 'Failed to load conversation');
+      return result.data;
+    },
+    enabled: !!conversationId,
+    staleTime: 30000,
     refetchOnWindowFocus: false,
   });
 }
