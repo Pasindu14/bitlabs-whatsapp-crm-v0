@@ -1,632 +1,576 @@
-import { db } from "@/db/drizzle";
-import { usersTable, auditLogsTable } from "@/db/schema";
 import { Result } from "@/lib/result";
 import { createPerformanceLogger } from "@/lib/logger";
-import { and, eq, ilike, or, sql } from "drizzle-orm";
-import { formatISO } from "date-fns";
-import bcrypt from "bcrypt";
-import crypto from "crypto";
-import { Buffer } from "buffer";
-import { logServerError } from "@/lib/logger";
+import { AuditLogService } from "@/lib/audit-log.service";
+import { db } from "@/db/drizzle";
+import { usersTable, auditLogsTable } from "@/db/schema";
+import { eq, and, desc, asc, or, sql } from "drizzle-orm";
 import type {
   UserCreateServerInput,
-  UserGetServerInput,
-  UserListServerInput,
-  UserResponse,
-  UserToggleStatusServerInput,
   UserUpdateServerInput,
+  UserListServerInput,
+  UserGetServerInput,
+  UserToggleStatusServerInput,
   UserResetPasswordServerInput,
-  UserSortField,
-  SortOrder,
+  UserResponse,
+  UserListResponse,
 } from "../schemas/user.schema";
 
-type UserRecord = UserResponse;
-type DbUser = typeof usersTable.$inferSelect;
-type SelectedUser = Pick<
-  DbUser,
-  | "id"
-  | "name"
-  | "email"
-  | "role"
-  | "companyId"
-  | "isActive"
-  | "startDateTime"
-  | "createdAt"
-  | "updatedAt"
-  | "createdBy"
-  | "updatedBy"
->;
-
-const DEFAULT_LIMIT = 20;
-const ADMIN_ROLE = "admin";
-
-const BASE_SELECTION = {
-  id: usersTable.id,
-  name: usersTable.name,
-  email: usersTable.email,
-  role: usersTable.role,
-  companyId: usersTable.companyId,
-  isActive: usersTable.isActive,
-  startDateTime: usersTable.startDateTime,
-  createdAt: usersTable.createdAt,
-  updatedAt: usersTable.updatedAt,
-  createdBy: usersTable.createdBy,
-  updatedBy: usersTable.updatedBy,
-} satisfies Record<keyof SelectedUser, unknown>;
-
-function mapToUserRecord(row: SelectedUser): UserRecord {
-  return {
-    id: row.id,
-    name: row.name,
-    email: row.email,
-    role: row.role as UserRecord["role"],
-    companyId: row.companyId,
-    isActive: row.isActive,
-    startDateTime: row.startDateTime,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt ?? null,
-    createdBy: row.createdBy ?? null,
-    updatedBy: row.updatedBy ?? null,
-  };
-}
-
-type CursorPayload = { sortValue: string | number | null; id: number };
-
-function encodeCursor(record: UserRecord, sortField: UserSortField): string {
-  const sortValue =
-    sortField === "createdAt"
-      ? record.createdAt
-        ? formatISO(record.createdAt)
-        : null
-      : record[sortField];
-
-  return Buffer.from(
-    JSON.stringify({
-      sortValue,
-      id: record.id,
-    })
-  ).toString("base64");
-}
-
-function decodeCursor(cursor?: string): CursorPayload | null {
-  if (!cursor) return null;
-  try {
-    const parsed = JSON.parse(Buffer.from(cursor, "base64").toString());
-    if (typeof parsed?.id === "number") {
-      return parsed as CursorPayload;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function buildCursorCondition(
-  cursor: CursorPayload | null,
-  sortField: UserSortField,
-  sortOrder: SortOrder
-) {
-  if (!cursor) return undefined;
-
-  const sortColumn = usersTable[sortField];
-  const comparator =
-    sortOrder === "asc"
-      ? sql`(${sortColumn}, ${usersTable.id}) > (${cursor.sortValue}, ${cursor.id})`
-      : sql`(${sortColumn}, ${usersTable.id}) < (${cursor.sortValue}, ${cursor.id})`;
-
-  return comparator;
-}
-
-function buildOrder(sortField: UserSortField, sortOrder: SortOrder) {
-  const column = usersTable[sortField];
-  const direction = sortOrder === "asc" ? sql`${column} asc` : sql`${column} desc`;
-
-  // always add id as tiebreaker
-  const idDirection = sortOrder === "asc" ? sql`${usersTable.id} asc` : sql`${usersTable.id} desc`;
-
-  return [direction, idDirection];
-}
-
-async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, 12);
-}
-
-async function countActiveAdmins(companyId: number): Promise<number> {
-  const [row] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(usersTable)
-    .where(
-      and(
-        eq(usersTable.companyId, companyId),
-        eq(usersTable.role, ADMIN_ROLE),
-        eq(usersTable.isActive, true)
-      )
-    );
-  return Number(row?.count ?? 0);
-}
-
 export class UserService {
-  static async list(
-    input: UserListServerInput
-  ): Promise<Result<{ items: UserRecord[]; nextCursor: string | null; hasMore: boolean }>> {
-    const perf = createPerformanceLogger("UserService.list");
+  static async create(
+    data: UserCreateServerInput
+  ): Promise<Result<UserResponse>> {
+    const perf = createPerformanceLogger("UserService.create", {
+      context: { companyId: data.companyId, userId: data.userId },
+    });
+
     try {
-      const limit = input.limit ?? DEFAULT_LIMIT;
-      const cursor = decodeCursor(input.cursor);
-      const sortField = input.sortField ?? "createdAt";
-      const sortOrder = input.sortOrder ?? "desc";
-
-      const baseFilters: Array<ReturnType<typeof eq> | ReturnType<typeof or>> = [
-        eq(usersTable.companyId, input.companyId),
-      ];
-
-      if (input.isActive !== undefined) {
-        baseFilters.push(eq(usersTable.isActive, input.isActive));
-      }
-
-      if (input.role) {
-        baseFilters.push(eq(usersTable.role, input.role));
-      }
-
-      if (input.search) {
-        baseFilters.push(
-          or(ilike(usersTable.name, `%${input.search}%`), ilike(usersTable.email, `%${input.search}%`))
-        );
-      }
-
-      const cursorCondition = buildCursorCondition(cursor, sortField, sortOrder);
-      const whereClause = cursorCondition ? and(...baseFilters, cursorCondition) : and(...baseFilters);
-
-      const data = await db
-        .select(BASE_SELECTION)
-        .from(usersTable)
-        .where(whereClause)
-        .orderBy(...buildOrder(sortField, sortOrder))
-        .limit(limit + 1);
-
-      const hasMore = data.length > limit;
-      const selected = hasMore ? data.slice(0, limit) : data;
-      const items = selected.map(mapToUserRecord);
-      const nextCursor =
-        hasMore && items.length > 0 ? encodeCursor(items[items.length - 1]!, sortField) : null;
-
-      perf.complete(items.length, { hasMore });
-      return Result.ok({ items, nextCursor, hasMore });
-    } catch (error) {
-      perf.fail(error as Error);
-      return Result.fail("Failed to list users", {
-        code: "INTERNAL_ERROR",
-        details: { message: String(error) },
-      });
-    }
-  }
-
-  static async get(input: UserGetServerInput): Promise<Result<UserRecord>> {
-    const perf = createPerformanceLogger("UserService.get");
-    try {
-      const [record] = await db
-        .select(BASE_SELECTION)
-        .from(usersTable)
-        .where(and(eq(usersTable.companyId, input.companyId), eq(usersTable.id, input.id)))
-        .limit(1);
-
-      if (!record) {
-        perf.fail("not_found");
-        return Result.notFound("User not found");
-      }
-
-      const mapped = mapToUserRecord(record);
-      perf.complete(1, { userId: mapped.id });
-      return Result.ok(mapped);
-    } catch (error) {
-      perf.fail(error as Error);
-      return Result.fail("Failed to get user", {
-        code: "INTERNAL_ERROR",
-        details: { message: String(error) },
-      });
-    }
-  }
-
-  static async create(input: UserCreateServerInput): Promise<Result<UserRecord>> {
-    const perf = createPerformanceLogger("UserService.create");
-    try {
-      if (input.actorRole !== ADMIN_ROLE) {
-        perf.fail("forbidden");
-        return Result.forbidden("Only admins can create users");
-      }
-
-      const existingByEmail = await db
+      const existingUser = await db
         .select({ id: usersTable.id })
         .from(usersTable)
-        .where(and(eq(usersTable.companyId, input.companyId), eq(usersTable.email, input.email)))
-        .limit(1)
-        .then((rows) => rows[0]);
+        .where(
+          and(
+            eq(usersTable.companyId, data.companyId),
+            eq(usersTable.email, data.email)
+          )
+        )
+        .limit(1);
 
-      if (existingByEmail) {
-        perf.fail("conflict_email");
-        return Result.conflict("Email already exists");
+      if (existingUser.length > 0) {
+        perf.fail("Email already exists in company");
+        return Result.conflict("A user with this email already exists");
       }
 
-      const password = input.temporaryPassword || crypto.randomUUID();
-      const passwordHash = await hashPassword(password);
+      const passwordHash = await UserService.hashPassword(data.temporaryPassword);
 
-      const created = await db.transaction(async (tx) => {
-        const [user] = await tx
-          .insert(usersTable)
-          .values({
-            name: input.name,
-            email: input.email,
-            role: input.role,
-            passwordHash,
-            companyId: input.companyId,
-            isActive: input.isActive ?? true,
-            startDateTime: sql`now()`,
-            createdBy: input.userId,
-            updatedBy: input.userId,
-          })
-          .returning(BASE_SELECTION);
-
-        await tx.insert(auditLogsTable).values({
-          entityType: "user",
-          entityId: user.id,
-          companyId: input.companyId,
-          action: "CREATE",
-          oldValues: {},
-          newValues: {
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            isActive: user.isActive,
-          },
-          changedBy: input.userId,
-          changeReason: null,
+      const [newUser] = await db
+        .insert(usersTable)
+        .values({
+          name: data.name,
+          email: data.email,
+          role: data.role,
+          passwordHash,
+          companyId: data.companyId,
+          createdBy: data.userId,
+          updatedBy: data.userId,
+          isActive: data.isActive ?? true,
+        })
+        .returning({
+          id: usersTable.id,
+          name: usersTable.name,
+          email: usersTable.email,
+          role: usersTable.role,
+          companyId: usersTable.companyId,
+          isActive: usersTable.isActive,
+          startDateTime: usersTable.startDateTime,
+          createdAt: usersTable.createdAt,
+          updatedAt: usersTable.updatedAt,
+          createdBy: usersTable.createdBy,
+          updatedBy: usersTable.updatedBy,
         });
 
-        return user;
+      const userResponse: UserResponse = {
+        ...newUser,
+        role: newUser.role as UserResponse["role"],
+      };
+
+      await db.insert(auditLogsTable).values({
+        entityType: "user",
+        entityId: newUser.id,
+        companyId: data.companyId,
+        action: "CREATE",
+        oldValues: null,
+        newValues: {
+          name: newUser.name,
+          email: newUser.email,
+          role: newUser.role,
+          isActive: newUser.isActive,
+        },
+        changedBy: data.userId,
+        changeReason: "User created",
       });
 
-      const mapped = mapToUserRecord(created);
-      perf.complete(1, { userId: mapped.id });
-      return Result.ok(mapped);
+      perf.complete(1);
+      return Result.ok(userResponse, "User created successfully");
     } catch (error) {
-      perf.fail(error as Error);
-      logServerError("UserService.create", error as Error);
-
-      const message = (error as Error).message ?? String(error);
-      const isConflict = message?.toLowerCase?.().includes("duplicate") || message?.includes("unique");
-
-      try {
-        await db.insert(auditLogsTable).values({
-          entityType: "user",
-          entityId: 0,
-          companyId: input.companyId,
-          action: "CREATE_FAILED",
-          oldValues: {},
-          newValues: {
-            name: input.name,
-            email: input.email,
-            role: input.role,
-          },
-          changedBy: input.userId,
-          changeReason: isConflict ? "Email already exists" : "Internal error",
-        });
-      } catch (auditError) {
-        logServerError("UserService.create.audit", auditError as Error);
-      }
-
-      if (isConflict) {
-        return Result.conflict("Email already exists");
-      }
-      return Result.fail("Failed to create user", {
-        code: "INTERNAL_ERROR",
-        details: { message },
+      const errorMessage = error instanceof Error ? error.message : "Failed to create user";
+      perf.fail(errorMessage);
+      await AuditLogService.logFailure({
+        entityType: "user",
+        entityId: null,
+        companyId: data.companyId,
+        userId: data.userId,
+        action: "CREATE",
+        error: errorMessage,
       });
+      return Result.internal("Failed to create user");
     }
   }
 
-  static async update(input: UserUpdateServerInput): Promise<Result<UserRecord>> {
-    const perf = createPerformanceLogger("UserService.update");
+  static async update(
+    data: UserUpdateServerInput
+  ): Promise<Result<UserResponse>> {
+    const perf = createPerformanceLogger("UserService.update", {
+      context: { companyId: data.companyId, userId: data.userId, targetId: data.id },
+    });
+
     try {
-      if (input.actorRole !== ADMIN_ROLE && input.actorRole !== "manager") {
-        perf.fail("forbidden");
-        return Result.forbidden("Only admins or managers can update users");
-      }
-
-      const existing = await db
-        .select(BASE_SELECTION)
+      const [existingUser] = await db
+        .select({
+          id: usersTable.id,
+          name: usersTable.name,
+          email: usersTable.email,
+          role: usersTable.role,
+          isActive: usersTable.isActive,
+        })
         .from(usersTable)
-        .where(and(eq(usersTable.companyId, input.companyId), eq(usersTable.id, input.id)))
-        .limit(1)
-        .then((rows) => rows[0]);
+        .where(
+          and(
+            eq(usersTable.id, data.id),
+            eq(usersTable.companyId, data.companyId)
+          )
+        )
+        .limit(1);
 
-      if (!existing) {
-        perf.fail("not_found");
+      if (!existingUser) {
+        perf.fail("User not found");
         return Result.notFound("User not found");
       }
 
-      if (input.actorRole === "manager" && existing.role === ADMIN_ROLE) {
-        return Result.forbidden("Managers cannot modify admin users");
-      }
-
-      const isDemotingAdmin =
-        existing.role === ADMIN_ROLE &&
-        ((input.role && input.role !== ADMIN_ROLE) || input.isActive === false);
-
-      if (isDemotingAdmin) {
-        const adminCount = await countActiveAdmins(input.companyId);
-        if (adminCount <= 1) {
-          return Result.badRequest("Cannot demote or deactivate the last active admin");
-        }
-      }
-
-      const emailToUse = input.email ?? existing.email;
-      if (emailToUse !== existing.email) {
-        const duplicate = await db
+      if (data.email && data.email !== existingUser.email) {
+        const emailConflict = await db
           .select({ id: usersTable.id })
           .from(usersTable)
           .where(
             and(
-              eq(usersTable.companyId, input.companyId),
-              eq(usersTable.email, emailToUse),
-              sql`${usersTable.id} != ${existing.id}`
+              eq(usersTable.companyId, data.companyId),
+              eq(usersTable.email, data.email),
+              sql`${usersTable.id} != ${data.id}`
             )
           )
-          .limit(1)
-          .then((rows) => rows[0]);
-        if (duplicate) {
-          return Result.conflict("Email already exists");
+          .limit(1);
+
+        if (emailConflict.length > 0) {
+          perf.fail("Email already exists in company");
+          return Result.conflict("A user with this email already exists");
         }
       }
 
-      const updated = await db.transaction(async (tx) => {
-        const [user] = await tx
-          .update(usersTable)
-          .set({
-            name: input.name ?? existing.name,
-            email: emailToUse,
-            role: input.role ?? existing.role,
-            isActive: input.isActive ?? existing.isActive,
-            updatedBy: input.userId,
-            updatedAt: sql`now()`,
-          })
-          .where(and(eq(usersTable.companyId, input.companyId), eq(usersTable.id, input.id)))
-          .returning(BASE_SELECTION);
+      const updateData: {
+        name?: string;
+        email?: string;
+        role?: UserResponse["role"];
+        isActive?: boolean;
+        updatedBy: number;
+        updatedAt: Date;
+      } = {
+        updatedBy: data.userId,
+        updatedAt: new Date(),
+      };
 
-        if (!user) {
-          throw new Error("User not found after update");
-        }
+      if (data.name !== undefined) updateData.name = data.name;
+      if (data.email !== undefined) updateData.email = data.email;
+      if (data.role !== undefined) updateData.role = data.role;
+      if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
-        const changedFields: Record<string, unknown> = {};
-        if (input.name !== undefined && input.name !== existing.name) {
-          changedFields.name = input.name;
-        }
-        if (input.email !== undefined && input.email !== existing.email) {
-          changedFields.email = input.email;
-        }
-        if (input.role !== undefined && input.role !== existing.role) {
-          changedFields.role = input.role;
-        }
-        if (input.isActive !== undefined && input.isActive !== existing.isActive) {
-          changedFields.isActive = input.isActive;
-        }
-
-        const oldValues: Record<string, unknown> = {};
-        if (input.name !== undefined && input.name !== existing.name) {
-          oldValues.name = existing.name;
-        }
-        if (input.email !== undefined && input.email !== existing.email) {
-          oldValues.email = existing.email;
-        }
-        if (input.role !== undefined && input.role !== existing.role) {
-          oldValues.role = existing.role;
-        }
-        if (input.isActive !== undefined && input.isActive !== existing.isActive) {
-          oldValues.isActive = existing.isActive;
-        }
-
-        await tx.insert(auditLogsTable).values({
-          entityType: "user",
-          entityId: user.id,
-          companyId: input.companyId,
-          action: "UPDATE",
-          oldValues,
-          newValues: changedFields,
-          changedBy: input.userId,
-          changeReason: null,
+      const [updatedUser] = await db
+        .update(usersTable)
+        .set(updateData)
+        .where(eq(usersTable.id, data.id))
+        .returning({
+          id: usersTable.id,
+          name: usersTable.name,
+          email: usersTable.email,
+          role: usersTable.role,
+          companyId: usersTable.companyId,
+          isActive: usersTable.isActive,
+          startDateTime: usersTable.startDateTime,
+          createdAt: usersTable.createdAt,
+          updatedAt: usersTable.updatedAt,
+          createdBy: usersTable.createdBy,
+          updatedBy: usersTable.updatedBy,
         });
 
-        return user;
+      const userResponse: UserResponse = {
+        ...updatedUser,
+        role: updatedUser.role as UserResponse["role"],
+      };
+
+      const oldValues = {
+        name: existingUser.name,
+        email: existingUser.email,
+        role: existingUser.role,
+        isActive: existingUser.isActive,
+      };
+
+      const newValues: {
+        name?: string;
+        email?: string;
+        role?: string;
+        isActive?: boolean;
+      } = {};
+      if (data.name !== undefined) newValues.name = data.name;
+      if (data.email !== undefined) newValues.email = data.email;
+      if (data.role !== undefined) newValues.role = data.role;
+      if (data.isActive !== undefined) newValues.isActive = data.isActive;
+
+      await db.insert(auditLogsTable).values({
+        entityType: "user",
+        entityId: updatedUser.id,
+        companyId: data.companyId,
+        action: "UPDATE",
+        oldValues,
+        newValues,
+        changedBy: data.userId,
+        changeReason: "User updated",
       });
 
-      const mapped = mapToUserRecord(updated);
-      perf.complete(1, { userId: mapped.id });
-      return Result.ok(mapped);
+      perf.complete(1);
+      return Result.ok(userResponse, "User updated successfully");
     } catch (error) {
-      perf.fail(error as Error);
-      logServerError("UserService.update", error as Error);
-
-      const message = (error as Error).message ?? String(error);
-      const isConflict = message?.toLowerCase?.().includes("duplicate") || message?.includes("unique");
-
-      try {
-        await db.insert(auditLogsTable).values({
-          entityType: "user",
-          entityId: input.id,
-          companyId: input.companyId,
-          action: "UPDATE_FAILED",
-          oldValues: {},
-          newValues: {
-            name: input.name,
-            email: input.email,
-            role: input.role,
-            isActive: input.isActive,
-          },
-          changedBy: input.userId,
-          changeReason: isConflict ? "Email already exists" : "Internal error",
-        });
-      } catch (auditError) {
-        logServerError("UserService.update.audit", auditError as Error);
-      }
-
-      if (isConflict) {
-        return Result.conflict("Email already exists");
-      }
-      return Result.fail("Failed to update user", {
-        code: "INTERNAL_ERROR",
-        details: { message },
+      const errorMessage = error instanceof Error ? error.message : "Failed to update user";
+      perf.fail(errorMessage);
+      await AuditLogService.logFailure({
+        entityType: "user",
+        entityId: data.id,
+        companyId: data.companyId,
+        userId: data.userId,
+        action: "UPDATE",
+        error: errorMessage,
       });
+      return Result.internal("Failed to update user");
     }
   }
 
-  static async toggleStatus(input: UserToggleStatusServerInput): Promise<Result<null>> {
-    const perf = createPerformanceLogger("UserService.toggleStatus");
+  static async getById(
+    data: UserGetServerInput
+  ): Promise<Result<UserResponse>> {
+    const perf = createPerformanceLogger("UserService.getById", {
+      context: { companyId: data.companyId, userId: data.id },
+    });
+
     try {
-      if (input.userId === input.id) {
-        return Result.badRequest("You cannot change your own status");
-      }
-
-      const existing = await db
-        .select(BASE_SELECTION)
+      const [user] = await db
+        .select({
+          id: usersTable.id,
+          name: usersTable.name,
+          email: usersTable.email,
+          role: usersTable.role,
+          companyId: usersTable.companyId,
+          isActive: usersTable.isActive,
+          startDateTime: usersTable.startDateTime,
+          createdAt: usersTable.createdAt,
+          updatedAt: usersTable.updatedAt,
+          createdBy: usersTable.createdBy,
+          updatedBy: usersTable.updatedBy,
+        })
         .from(usersTable)
-        .where(and(eq(usersTable.companyId, input.companyId), eq(usersTable.id, input.id)))
-        .limit(1)
-        .then((rows) => rows[0]);
+        .where(
+          and(
+            eq(usersTable.id, data.id),
+            eq(usersTable.companyId, data.companyId)
+          )
+        )
+        .limit(1);
 
-      if (!existing) {
+      if (!user) {
+        perf.fail("User not found");
         return Result.notFound("User not found");
       }
 
-      if (existing.role === ADMIN_ROLE && input.isActive === false) {
-        const adminCount = await countActiveAdmins(input.companyId);
-        if (adminCount <= 1) {
-          return Result.badRequest("Cannot deactivate the last active admin");
-        }
-      }
+      const userResponse: UserResponse = {
+        ...user,
+        role: user.role as UserResponse["role"],
+      };
 
-      await db.transaction(async (tx) => {
-        const [user] = await tx
-          .update(usersTable)
-          .set({
-            isActive: input.isActive,
-            updatedBy: input.userId,
-            updatedAt: sql`now()`,
-          })
-          .where(and(eq(usersTable.companyId, input.companyId), eq(usersTable.id, input.id)))
-          .returning(BASE_SELECTION);
-
-        if (!user) {
-          throw new Error("User not found after update");
-        }
-
-        await tx.insert(auditLogsTable).values({
-          entityType: "user",
-          entityId: user.id,
-          companyId: input.companyId,
-          action: "STATUS_CHANGE",
-          oldValues: { isActive: existing.isActive },
-          newValues: { isActive: input.isActive },
-          changedBy: input.userId,
-          changeReason: null,
-        });
-      });
-
-      perf.complete(1, { userId: input.id, isActive: input.isActive });
-      return Result.ok(null);
+      perf.complete(1);
+      return Result.ok(userResponse);
     } catch (error) {
-      perf.fail(error as Error);
-      logServerError("UserService.toggleStatus", error as Error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to get user";
+      perf.fail(errorMessage);
+      return Result.internal("Failed to get user");
+    }
+  }
 
-      try {
-        await db.insert(auditLogsTable).values({
-          entityType: "user",
-          entityId: input.id,
-          companyId: input.companyId,
-          action: "STATUS_CHANGE_FAILED",
-          oldValues: {},
-          newValues: { isActive: input.isActive },
-          changedBy: input.userId,
-          changeReason: "Internal error",
-        });
-      } catch (auditError) {
-        logServerError("UserService.toggleStatus.audit", auditError as Error);
+  static async list(
+    data: UserListServerInput
+  ): Promise<Result<UserListResponse>> {
+    const perf = createPerformanceLogger("UserService.list", {
+      context: { companyId: data.companyId },
+    });
+
+    try {
+      const fetchLimit = data.limit + 1;
+      const conditions = [eq(usersTable.companyId, data.companyId)];
+
+      if (data.isActive !== undefined) {
+        conditions.push(eq(usersTable.isActive, data.isActive));
+      } else {
+        conditions.push(eq(usersTable.isActive, true));
       }
 
-      return Result.fail("Failed to toggle user status", {
-        code: "INTERNAL_ERROR",
-        details: { message: String(error) },
+      if (data.role) {
+        conditions.push(eq(usersTable.role, data.role));
+      }
+
+      if (data.search) {
+        const searchTerm = `%${data.search}%`;
+        conditions.push(
+          or(
+            sql`${usersTable.name} ILIKE ${searchTerm}`,
+            sql`${usersTable.email} ILIKE ${searchTerm}`
+          )!
+        );
+      }
+
+      let orderByClause;
+      const sortField = data.sortField;
+      const sortOrder = data.sortOrder;
+
+      if (sortField === "createdAt") {
+        orderByClause = sortOrder === "asc"
+          ? asc(usersTable.createdAt)
+          : desc(usersTable.createdAt);
+      } else if (sortField === "name") {
+        orderByClause = sortOrder === "asc"
+          ? asc(usersTable.name)
+          : desc(usersTable.name);
+      } else if (sortField === "email") {
+        orderByClause = sortOrder === "asc"
+          ? asc(usersTable.email)
+          : desc(usersTable.email);
+      } else {
+        orderByClause = sortOrder === "asc"
+          ? asc(usersTable.role)
+          : desc(usersTable.role);
+      }
+
+      const users = await db
+        .select({
+          id: usersTable.id,
+          name: usersTable.name,
+          email: usersTable.email,
+          role: usersTable.role,
+          companyId: usersTable.companyId,
+          isActive: usersTable.isActive,
+          startDateTime: usersTable.startDateTime,
+          createdAt: usersTable.createdAt,
+          updatedAt: usersTable.updatedAt,
+          createdBy: usersTable.createdBy,
+          updatedBy: usersTable.updatedBy,
+        })
+        .from(usersTable)
+        .where(and(...conditions))
+        .orderBy(orderByClause, desc(usersTable.id))
+        .limit(fetchLimit);
+
+      const hasMore = users.length > data.limit;
+      const items = hasMore ? users.slice(0, data.limit) : users;
+
+      const typedItems: UserResponse[] = items.map((item) => ({
+        ...item,
+        role: item.role as UserResponse["role"],
+      }));
+
+      let nextCursor = null;
+      if (hasMore && typedItems.length > 0) {
+        const lastItem = typedItems[typedItems.length - 1];
+        const cursorData = {
+          id: lastItem.id,
+          [sortField]: lastItem[sortField as keyof typeof lastItem],
+        };
+        nextCursor = Buffer.from(JSON.stringify(cursorData)).toString("base64");
+      }
+
+      perf.complete(typedItems.length);
+      return Result.ok({
+        items: typedItems,
+        nextCursor,
+        hasMore,
       });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to list users";
+      perf.fail(errorMessage);
+      return Result.internal("Failed to list users");
+    }
+  }
+
+  static async toggleStatus(
+    data: UserToggleStatusServerInput
+  ): Promise<Result<UserResponse>> {
+    const perf = createPerformanceLogger("UserService.toggleStatus", {
+      context: { companyId: data.companyId, userId: data.userId, targetId: data.id },
+    });
+
+    try {
+      const [existingUser] = await db
+        .select({
+          id: usersTable.id,
+          name: usersTable.name,
+          email: usersTable.email,
+          role: usersTable.role,
+          isActive: usersTable.isActive,
+        })
+        .from(usersTable)
+        .where(
+          and(
+            eq(usersTable.id, data.id),
+            eq(usersTable.companyId, data.companyId)
+          )
+        )
+        .limit(1);
+
+      if (!existingUser) {
+        perf.fail("User not found");
+        return Result.notFound("User not found");
+      }
+
+      if (existingUser.isActive === data.isActive) {
+        perf.fail("User already has the requested status");
+        return Result.badRequest("User already has the requested status");
+      }
+
+      const [updatedUser] = await db
+        .update(usersTable)
+        .set({
+          isActive: data.isActive,
+          updatedBy: data.userId,
+          updatedAt: new Date(),
+        })
+        .where(eq(usersTable.id, data.id))
+        .returning({
+          id: usersTable.id,
+          name: usersTable.name,
+          email: usersTable.email,
+          role: usersTable.role,
+          companyId: usersTable.companyId,
+          isActive: usersTable.isActive,
+          startDateTime: usersTable.startDateTime,
+          createdAt: usersTable.createdAt,
+          updatedAt: usersTable.updatedAt,
+          createdBy: usersTable.createdBy,
+          updatedBy: usersTable.updatedBy,
+        });
+
+      const userResponse: UserResponse = {
+        ...updatedUser,
+        role: updatedUser.role as UserResponse["role"],
+      };
+
+      await db.insert(auditLogsTable).values({
+        entityType: "user",
+        entityId: updatedUser.id,
+        companyId: data.companyId,
+        action: "TOGGLE_STATUS",
+        oldValues: { isActive: existingUser.isActive },
+        newValues: { isActive: updatedUser.isActive },
+        changedBy: data.userId,
+        changeReason: data.isActive ? "User activated" : "User deactivated",
+      });
+
+      perf.complete(1);
+      return Result.ok(
+        userResponse,
+        data.isActive ? "User activated successfully" : "User deactivated successfully"
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to toggle user status";
+      perf.fail(errorMessage);
+      await AuditLogService.logFailure({
+        entityType: "user",
+        entityId: data.id,
+        companyId: data.companyId,
+        userId: data.userId,
+        action: "TOGGLE_STATUS",
+        error: errorMessage,
+      });
+      return Result.internal("Failed to toggle user status");
     }
   }
 
   static async resetPassword(
-    input: UserResetPasswordServerInput
-  ): Promise<Result<{ resetToken: string }>> {
-    const perf = createPerformanceLogger("UserService.resetPassword");
+    data: UserResetPasswordServerInput
+  ): Promise<Result<{ id: number; temporaryPassword: string }>> {
+    const perf = createPerformanceLogger("UserService.resetPassword", {
+      context: { companyId: data.companyId, userId: data.userId, targetId: data.id },
+    });
+
     try {
-      const [existing] = await db
-        .select(BASE_SELECTION)
+      const [existingUser] = await db
+        .select({
+          id: usersTable.id,
+          name: usersTable.name,
+          email: usersTable.email,
+        })
         .from(usersTable)
-        .where(and(eq(usersTable.companyId, input.companyId), eq(usersTable.id, input.id)))
+        .where(
+          and(
+            eq(usersTable.id, data.id),
+            eq(usersTable.companyId, data.companyId)
+          )
+        )
         .limit(1);
 
-      if (!existing) {
+      if (!existingUser) {
+        perf.fail("User not found");
         return Result.notFound("User not found");
       }
 
-      const newPasswordHash = await hashPassword("abc@123");
+      const temporaryPassword = UserService.generateTemporaryPassword();
+      const passwordHash = await UserService.hashPassword(temporaryPassword);
 
-      await db.transaction(async (tx) => {
-        const [user] = await tx
-          .update(usersTable)
-          .set({
-            passwordHash: newPasswordHash,
-            updatedBy: input.userId,
-            updatedAt: sql`now()`,
-          })
-          .where(and(eq(usersTable.companyId, input.companyId), eq(usersTable.id, input.id)))
-          .returning(BASE_SELECTION);
+      await db
+        .update(usersTable)
+        .set({
+          passwordHash,
+          updatedBy: data.userId,
+          updatedAt: new Date(),
+        })
+        .where(eq(usersTable.id, data.id));
 
-        if (!user) {
-          throw new Error("User not found after update");
-        }
-
-        await tx.insert(auditLogsTable).values({
-          entityType: "user",
-          entityId: user.id,
-          companyId: input.companyId,
-          action: "RESET_PASSWORD",
-          oldValues: {},
-          newValues: {},
-          changedBy: input.userId,
-          changeReason: null,
-        });
+      await db.insert(auditLogsTable).values({
+        entityType: "user",
+        entityId: existingUser.id,
+        companyId: data.companyId,
+        action: "RESET_PASSWORD",
+        oldValues: null,
+        newValues: { email: existingUser.email },
+        changedBy: data.userId,
+        changeReason: "Password reset requested",
       });
 
-      perf.complete(1, { userId: input.id });
-      return Result.ok({ resetToken: "abc@123" });
+      perf.complete(1);
+      return Result.ok(
+        { id: existingUser.id, temporaryPassword },
+        "Password reset successfully"
+      );
     } catch (error) {
-      perf.fail(error as Error);
-      logServerError("UserService.resetPassword", error as Error);
-
-      try {
-        await db.insert(auditLogsTable).values({
-          entityType: "user",
-          entityId: input.id,
-          companyId: input.companyId,
-          action: "RESET_PASSWORD_FAILED",
-          oldValues: {},
-          newValues: {},
-          changedBy: input.userId,
-          changeReason: "Internal error",
-        });
-      } catch (auditError) {
-        logServerError("UserService.resetPassword.audit", auditError as Error);
-      }
-
-      return Result.fail("Failed to reset password", {
-        code: "INTERNAL_ERROR",
-        details: { message: String(error) },
+      const errorMessage = error instanceof Error ? error.message : "Failed to reset password";
+      perf.fail(errorMessage);
+      await AuditLogService.logFailure({
+        entityType: "user",
+        entityId: data.id,
+        companyId: data.companyId,
+        userId: data.userId,
+        action: "RESET_PASSWORD",
+        error: errorMessage,
       });
+      return Result.internal("Failed to reset password");
     }
+  }
+
+  private static async hashPassword(password: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  private static generateTemporaryPassword(): string {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+    const passwordLength = 16;
+    const array = new Uint32Array(passwordLength);
+    crypto.getRandomValues(array);
+    return Array.from(array, (x) => chars[x % chars.length]).join("");
   }
 }

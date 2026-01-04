@@ -34,9 +34,32 @@ export class AuditLogService {
       return Result.ok(null);
     } catch (error) {
       logger.fail(error as Error);
-      // Don't fail the operation if audit logging fails
       console.error("Audit logging failed:", error);
       return Result.ok(null);
+    }
+  }
+
+  static async logFailure(params: {
+    entityType: string;
+    entityId: number | null;
+    companyId: number;
+    userId: number;
+    action: string;
+    error: string;
+  }): Promise<void> {
+    try {
+      await db.insert(auditLogsTable).values({
+        entityType: params.entityType,
+        entityId: params.entityId ?? 0,
+        companyId: params.companyId,
+        action: `${params.action}_FAILED`,
+        oldValues: null,
+        newValues: { error: params.error },
+        changedBy: params.userId,
+        changeReason: "Operation failed",
+      });
+    } catch (auditError) {
+      console.error("Failed to log audit failure:", auditError);
     }
   }
 }

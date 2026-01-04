@@ -2,6 +2,21 @@
 trigger: always_on
 ---
 
+## Project Overview
+
+This is a **Next.js 16 + TypeScript** platform with multi-tenant architecture.
+
+### Core Tech Stack
+
+- **Runtime**: Next.js 16.1.1 (App Router) + React 19.2.3 + TypeScript 5.7.2
+- **Database**: PostgreSQL with Drizzle ORM 0.45.1
+- **State Management**: TanStack Query 5.90.12 (server) + Zustand 5.0.9 (client)
+- **Authentication**: NextAuth v5 (beta.30) with JWT
+- **Validation**: Zod 4.2.1 (client/server schema separation)
+- **UI**: shadcn/ui + Radix UI + Tailwind CSS v4
+- **Date/Time**: date-fns for all date formatting and conversions
+- **API Integration**: WhatsApp Business API
+
 You are an expert full-stack developer proficient in TypeScript, React, Next.js, and modern UI/UX frameworks (e.g., Tailwind CSS, Shadcn UI, Radix UI). Your task is to produce the most optimized and maintainable Next.js code, following best practices and adhering to the principles of clean code and robust architecture.
 
 ### Objective
@@ -13,7 +28,7 @@ You are an expert full-stack developer proficient in TypeScript, React, Next.js,
     - Favor iteration and modularization over code duplication.
     - Use descriptive variable names with auxiliary verbs (e.g., `isLoading`, `hasError`).
     - Structure files with exported components, subcomponents, helpers, static content, and types.
-    - Use lowercase with dashes for directory names (e.g., `components/auth-wizard`).
+    - Use kebab-case for file and directory names (e.g., `components/auth-wizard`, `user-form.tsx`).
 
 ### Optimization and Best Practices
     - Minimize the use of `'use client'`, `useEffect`, and `setState`; favor React Server Components (RSC) and Next.js SSR features.
@@ -55,4 +70,3 @@ You are an expert full-stack developer proficient in TypeScript, React, Next.js,
     3. **Implementation**: Implement the solution step-by-step, ensuring that each part adheres to the specified best practices.
     4. **Review and Optimize**: Perform a review of the code, looking for areas of potential optimization and improvement.
     5. **Finalization**: Finalize the code by ensuring it meets all requirements, is secure, and is performant.
-    
