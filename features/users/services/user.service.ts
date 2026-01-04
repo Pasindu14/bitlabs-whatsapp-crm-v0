@@ -1,13 +1,13 @@
 import { db } from "@/db/drizzle";
-import { usersTable } from "@/db/schema";
+import { usersTable, auditLogsTable } from "@/db/schema";
 import { Result } from "@/lib/result";
 import { createPerformanceLogger } from "@/lib/logger";
-import { AuditLogService } from "@/lib/audit-log.service";
 import { and, eq, ilike, or, sql } from "drizzle-orm";
 import { formatISO } from "date-fns";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { Buffer } from "buffer";
+import { logServerError } from "@/lib/logger";
 import type {
   UserCreateServerInput,
   UserGetServerInput,
@@ -250,36 +250,70 @@ export class UserService {
       const password = input.temporaryPassword || crypto.randomUUID();
       const passwordHash = await hashPassword(password);
 
-      const [created] = await db
-        .insert(usersTable)
-        .values({
-          name: input.name,
-          email: input.email,
-          role: input.role,
-          passwordHash,
+      const created = await db.transaction(async (tx) => {
+        const [user] = await tx
+          .insert(usersTable)
+          .values({
+            name: input.name,
+            email: input.email,
+            role: input.role,
+            passwordHash,
+            companyId: input.companyId,
+            isActive: input.isActive ?? true,
+            startDateTime: sql`now()`,
+            createdBy: input.userId,
+            updatedBy: input.userId,
+          })
+          .returning(BASE_SELECTION);
+
+        await tx.insert(auditLogsTable).values({
+          entityType: "user",
+          entityId: user.id,
           companyId: input.companyId,
-          isActive: input.isActive ?? true,
-          startDateTime: sql`now()`,
-          createdBy: input.userId,
-          updatedBy: input.userId,
-        })
-        .returning(BASE_SELECTION);
+          action: "CREATE",
+          oldValues: {},
+          newValues: {
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            isActive: user.isActive,
+          },
+          changedBy: input.userId,
+          changeReason: null,
+        });
 
-      const mapped = mapToUserRecord(created);
-
-      await AuditLogService.log({
-        companyId: input.companyId,
-        userId: input.userId,
-        action: "user.create",
-        resourceId: mapped.id,
+        return user;
       });
 
+      const mapped = mapToUserRecord(created);
       perf.complete(1, { userId: mapped.id });
       return Result.ok(mapped);
     } catch (error) {
       perf.fail(error as Error);
+      logServerError("UserService.create", error as Error);
+
       const message = (error as Error).message ?? String(error);
       const isConflict = message?.toLowerCase?.().includes("duplicate") || message?.includes("unique");
+
+      try {
+        await db.insert(auditLogsTable).values({
+          entityType: "user",
+          entityId: 0,
+          companyId: input.companyId,
+          action: "CREATE_FAILED",
+          oldValues: {},
+          newValues: {
+            name: input.name,
+            email: input.email,
+            role: input.role,
+          },
+          changedBy: input.userId,
+          changeReason: isConflict ? "Email already exists" : "Internal error",
+        });
+      } catch (auditError) {
+        logServerError("UserService.create.audit", auditError as Error);
+      }
+
       if (isConflict) {
         return Result.conflict("Email already exists");
       }
@@ -344,37 +378,96 @@ export class UserService {
         }
       }
 
-      const [updated] = await db
-        .update(usersTable)
-        .set({
-          name: input.name ?? existing.name,
-          email: emailToUse,
-          role: input.role ?? existing.role,
-          isActive: input.isActive ?? existing.isActive,
-          updatedBy: input.userId,
-          updatedAt: sql`now()`,
-        })
-        .where(and(eq(usersTable.companyId, input.companyId), eq(usersTable.id, input.id)))
-        .returning(BASE_SELECTION);
+      const updated = await db.transaction(async (tx) => {
+        const [user] = await tx
+          .update(usersTable)
+          .set({
+            name: input.name ?? existing.name,
+            email: emailToUse,
+            role: input.role ?? existing.role,
+            isActive: input.isActive ?? existing.isActive,
+            updatedBy: input.userId,
+            updatedAt: sql`now()`,
+          })
+          .where(and(eq(usersTable.companyId, input.companyId), eq(usersTable.id, input.id)))
+          .returning(BASE_SELECTION);
 
-      if (!updated) {
-        return Result.notFound("User not found");
-      }
+        if (!user) {
+          throw new Error("User not found after update");
+        }
 
-      const mapped = mapToUserRecord(updated);
+        const changedFields: Record<string, unknown> = {};
+        if (input.name !== undefined && input.name !== existing.name) {
+          changedFields.name = input.name;
+        }
+        if (input.email !== undefined && input.email !== existing.email) {
+          changedFields.email = input.email;
+        }
+        if (input.role !== undefined && input.role !== existing.role) {
+          changedFields.role = input.role;
+        }
+        if (input.isActive !== undefined && input.isActive !== existing.isActive) {
+          changedFields.isActive = input.isActive;
+        }
 
-      await AuditLogService.log({
-        companyId: input.companyId,
-        userId: input.userId,
-        action: "user.update",
-        resourceId: mapped.id,
+        const oldValues: Record<string, unknown> = {};
+        if (input.name !== undefined && input.name !== existing.name) {
+          oldValues.name = existing.name;
+        }
+        if (input.email !== undefined && input.email !== existing.email) {
+          oldValues.email = existing.email;
+        }
+        if (input.role !== undefined && input.role !== existing.role) {
+          oldValues.role = existing.role;
+        }
+        if (input.isActive !== undefined && input.isActive !== existing.isActive) {
+          oldValues.isActive = existing.isActive;
+        }
+
+        await tx.insert(auditLogsTable).values({
+          entityType: "user",
+          entityId: user.id,
+          companyId: input.companyId,
+          action: "UPDATE",
+          oldValues,
+          newValues: changedFields,
+          changedBy: input.userId,
+          changeReason: null,
+        });
+
+        return user;
       });
 
+      const mapped = mapToUserRecord(updated);
       perf.complete(1, { userId: mapped.id });
       return Result.ok(mapped);
     } catch (error) {
+      perf.fail(error as Error);
+      logServerError("UserService.update", error as Error);
+
       const message = (error as Error).message ?? String(error);
       const isConflict = message?.toLowerCase?.().includes("duplicate") || message?.includes("unique");
+
+      try {
+        await db.insert(auditLogsTable).values({
+          entityType: "user",
+          entityId: input.id,
+          companyId: input.companyId,
+          action: "UPDATE_FAILED",
+          oldValues: {},
+          newValues: {
+            name: input.name,
+            email: input.email,
+            role: input.role,
+            isActive: input.isActive,
+          },
+          changedBy: input.userId,
+          changeReason: isConflict ? "Email already exists" : "Internal error",
+        });
+      } catch (auditError) {
+        logServerError("UserService.update.audit", auditError as Error);
+      }
+
       if (isConflict) {
         return Result.conflict("Email already exists");
       }
@@ -410,25 +503,54 @@ export class UserService {
         }
       }
 
-      await db
-        .update(usersTable)
-        .set({
-          isActive: input.isActive,
-          updatedBy: input.userId,
-          updatedAt: sql`now()`,
-        })
-        .where(and(eq(usersTable.companyId, input.companyId), eq(usersTable.id, input.id)));
+      await db.transaction(async (tx) => {
+        const [user] = await tx
+          .update(usersTable)
+          .set({
+            isActive: input.isActive,
+            updatedBy: input.userId,
+            updatedAt: sql`now()`,
+          })
+          .where(and(eq(usersTable.companyId, input.companyId), eq(usersTable.id, input.id)))
+          .returning(BASE_SELECTION);
 
-      await AuditLogService.log({
-        companyId: input.companyId,
-        userId: input.userId,
-        action: "user.toggleStatus",
-        resourceId: input.id,
+        if (!user) {
+          throw new Error("User not found after update");
+        }
+
+        await tx.insert(auditLogsTable).values({
+          entityType: "user",
+          entityId: user.id,
+          companyId: input.companyId,
+          action: "STATUS_CHANGE",
+          oldValues: { isActive: existing.isActive },
+          newValues: { isActive: input.isActive },
+          changedBy: input.userId,
+          changeReason: null,
+        });
       });
 
       perf.complete(1, { userId: input.id, isActive: input.isActive });
       return Result.ok(null);
     } catch (error) {
+      perf.fail(error as Error);
+      logServerError("UserService.toggleStatus", error as Error);
+
+      try {
+        await db.insert(auditLogsTable).values({
+          entityType: "user",
+          entityId: input.id,
+          companyId: input.companyId,
+          action: "STATUS_CHANGE_FAILED",
+          oldValues: {},
+          newValues: { isActive: input.isActive },
+          changedBy: input.userId,
+          changeReason: "Internal error",
+        });
+      } catch (auditError) {
+        logServerError("UserService.toggleStatus.audit", auditError as Error);
+      }
+
       return Result.fail("Failed to toggle user status", {
         code: "INTERNAL_ERROR",
         details: { message: String(error) },
@@ -441,9 +563,11 @@ export class UserService {
   ): Promise<Result<{ resetToken: string }>> {
     const perf = createPerformanceLogger("UserService.resetPassword");
     try {
-      const existing = await db.query.usersTable.findFirst({
-        where: and(eq(usersTable.companyId, input.companyId), eq(usersTable.id, input.id)),
-      });
+      const [existing] = await db
+        .select(BASE_SELECTION)
+        .from(usersTable)
+        .where(and(eq(usersTable.companyId, input.companyId), eq(usersTable.id, input.id)))
+        .limit(1);
 
       if (!existing) {
         return Result.notFound("User not found");
@@ -451,25 +575,54 @@ export class UserService {
 
       const newPasswordHash = await hashPassword("abc@123");
 
-      await db
-        .update(usersTable)
-        .set({
-          passwordHash: newPasswordHash,
-          updatedBy: input.userId,
-          updatedAt: sql`now()`,
-        })
-        .where(and(eq(usersTable.companyId, input.companyId), eq(usersTable.id, input.id)));
+      await db.transaction(async (tx) => {
+        const [user] = await tx
+          .update(usersTable)
+          .set({
+            passwordHash: newPasswordHash,
+            updatedBy: input.userId,
+            updatedAt: sql`now()`,
+          })
+          .where(and(eq(usersTable.companyId, input.companyId), eq(usersTable.id, input.id)))
+          .returning(BASE_SELECTION);
 
-      await AuditLogService.log({
-        companyId: input.companyId,
-        userId: input.userId,
-        action: "user.resetPassword",
-        resourceId: input.id,
+        if (!user) {
+          throw new Error("User not found after update");
+        }
+
+        await tx.insert(auditLogsTable).values({
+          entityType: "user",
+          entityId: user.id,
+          companyId: input.companyId,
+          action: "RESET_PASSWORD",
+          oldValues: {},
+          newValues: {},
+          changedBy: input.userId,
+          changeReason: null,
+        });
       });
 
       perf.complete(1, { userId: input.id });
       return Result.ok({ resetToken: "abc@123" });
     } catch (error) {
+      perf.fail(error as Error);
+      logServerError("UserService.resetPassword", error as Error);
+
+      try {
+        await db.insert(auditLogsTable).values({
+          entityType: "user",
+          entityId: input.id,
+          companyId: input.companyId,
+          action: "RESET_PASSWORD_FAILED",
+          oldValues: {},
+          newValues: {},
+          changedBy: input.userId,
+          changeReason: "Internal error",
+        });
+      } catch (auditError) {
+        logServerError("UserService.resetPassword.audit", auditError as Error);
+      }
+
       return Result.fail("Failed to reset password", {
         code: "INTERNAL_ERROR",
         details: { message: String(error) },
