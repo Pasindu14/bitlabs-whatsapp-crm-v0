@@ -9,6 +9,7 @@ const FILTER_OPTIONS: { label: string; value: ConversationFilterType }[] = [
   { label: 'Unread', value: 'unread' },
   { label: 'Favorites', value: 'favorites' },
   { label: 'Groups', value: 'groups' },
+  { label: 'Assigned', value: 'assigned' },
 ];
 
 export function ConversationFilterChips() {

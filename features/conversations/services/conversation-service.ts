@@ -395,6 +395,7 @@ export class ConversationService {
       if (filter.filterType === 'favorites') {
         baseClauses.push(eq(conversationsTable.isFavorite, true));
       }
+      
 
       const whereConditions = and(...baseClauses);
 
@@ -431,6 +432,11 @@ export class ConversationService {
           const contact = conv.contact as unknown as ContactResponse;
           return contact?.isGroup;
         });
+      }
+      console.log('filtered user', filtered)
+      // Apply assigned filter locally
+      if (filter.filterType === 'assigned' && filter.assignedUserId) {
+        filtered = filtered.filter((conv) => conv.assignedToUserId === filter.assignedUserId);
       }
 
       const hasMore = filtered.length > filter.limit;

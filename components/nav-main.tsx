@@ -30,6 +30,32 @@ interface NavItem {
   }[];
 }
 
+function NavItemDirect({ item }: { item: NavItem }) {
+  const pathname = usePathname();
+  const isActive =
+    pathname === item.url || pathname?.startsWith(item.url + "/");
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        asChild
+        tooltip={item.title}
+        isActive={isActive}
+        className={
+          isActive
+            ? "transition-colors duration-200 data-[active=true]:bg-primary data-[active=true]:text-white"
+            : "transition-colors duration-200"
+        }
+      >
+        <a href={item.url}>
+          {item.icon && <item.icon />}
+          <span>{item.title}</span>
+        </a>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
 function NavItemCollapsible({ item }: { item: NavItem }) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(item.isActive ?? false);
@@ -95,9 +121,13 @@ export function NavMain({
   return (
     <SidebarGroup>
       <SidebarMenu>
-        {items.map((item) => (
-          <NavItemCollapsible key={item.title} item={item} />
-        ))}
+        {items.map((item) =>
+          item.items ? (
+            <NavItemCollapsible key={item.title} item={item} />
+          ) : (
+            <NavItemDirect key={item.title} item={item} />
+          )
+        )}
       </SidebarMenu>
     </SidebarGroup>
   );

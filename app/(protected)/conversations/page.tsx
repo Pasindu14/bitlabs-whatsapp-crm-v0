@@ -27,11 +27,14 @@ export default function ConversationsPage() {
 
   const { isPending: isSending } = useSendNewMessage();
 
+  const currentUserId = session.data?.user?.id ? parseInt(session.data.user.id, 10) : undefined;
+
   const { data: conversationsData } = useConversations({
     filterType,
     searchTerm,
     includeArchived: showArchivedSection,
     limit: 50,
+    assignedUserId: filterType === 'assigned' ? currentUserId : undefined,
   });
 
   const { data: defaultAccount } = useDefaultWhatsappAccount();
@@ -70,9 +73,6 @@ export default function ConversationsPage() {
         {/* Search */}
         <ConversationSearch />
 
-        {/* Filter Chips */}
-        <ConversationFilterChips />
-
         {/* Conversation List */}
         <div className="flex-1 overflow-hidden">
           <ConversationList
@@ -80,6 +80,11 @@ export default function ConversationsPage() {
             searchTerm={searchTerm}
             includeArchived={showArchivedSection}
           />
+        </div>
+
+        {/* Filter Chips */}
+        <div className="border-t p-2">
+          <ConversationFilterChips />
         </div>
       </div>
 

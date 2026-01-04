@@ -3,7 +3,7 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Building2 } from "lucide-react";
+import { Building2, MessageCircle } from "lucide-react";
 
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
@@ -18,6 +18,11 @@ import { Separator } from "./ui/separator";
 import { NavHeader } from "./nav-header";
 
 const navMainData = [
+  {
+    title: "Conversations",
+    url: "/conversations",
+    icon: MessageCircle,
+  },
   {
     title: "Management",
     url: "#",

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 // Constants
-export const CONVERSATION_FILTER_TYPES = ['all', 'unread', 'favorites', 'groups'] as const;
+export const CONVERSATION_FILTER_TYPES = ['all', 'unread', 'favorites', 'groups', 'assigned'] as const;
 export type ConversationFilterType = (typeof CONVERSATION_FILTER_TYPES)[number];
 
 export const MESSAGE_STATUSES = ['sending', 'sent', 'delivered', 'read', 'failed'] as const;
@@ -47,6 +47,7 @@ export const conversationFilterSchema = z.object({
   cursor: z.string().optional(),
   limit: z.number().int().min(1).max(100).default(50),
   includeArchived: z.boolean().default(false),
+  assignedUserId: z.number().int().positive().optional(),
 });
 
 export type ConversationListFilter = z.infer<typeof conversationFilterSchema>;
