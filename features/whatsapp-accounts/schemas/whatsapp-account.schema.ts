@@ -9,7 +9,7 @@ export const whatsappAccountCreateClientSchema = z.object({
   name: z.string().min(2).max(120).trim(),
   phoneNumberId: z.string().min(1).max(255).trim(),
   businessAccountId: z.string().min(1).max(255).trim(),
-  accessToken: z.string().min(10).max(4096).trim(),
+  accessToken: z.string().min(5).max(4096).trim(),
   webhookUrl: z.string().url().trim().optional(),
   isDefault: z.boolean().optional(),
 });

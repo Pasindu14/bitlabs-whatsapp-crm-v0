@@ -72,6 +72,8 @@ export function WhatsappAccountForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultValues]);
 
+  const error = form.formState.errors;
+  console.log(error);
   return (
     <Form {...form}>
       <form
@@ -122,21 +124,19 @@ export function WhatsappAccountForm({
           )}
         />
 
-        {!isEdit && (
-          <FormField
-            control={form.control}
-            name="accessToken"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Access Token</FormLabel>
-                <FormControl>
-                  <Input type="password" placeholder="••••••••" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
+        <FormField
+          control={form.control}
+          name="accessToken"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Access Token</FormLabel>
+              <FormControl>
+                <Input type="password" placeholder="••••••••" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}
