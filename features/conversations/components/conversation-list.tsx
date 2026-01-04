@@ -1,6 +1,7 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
+import { useEffect } from 'react';
 import { useConversations } from '../hooks/conversation-hooks';
 import { useConversationStore } from '../store/conversation-store';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -30,6 +31,12 @@ export function ConversationList({
     limit: 50,
     assignedUserId: filterType === 'assigned' ? parseInt(session.data?.user.id || '0', 10) || undefined : undefined,
   });
+
+  useEffect(() => {
+    if (!isLoading && !error && data?.conversations && data.conversations.length === 0) {
+      setSelectedConversation(null);
+    }
+  }, [data, isLoading, error, setSelectedConversation]);
 
   if (isLoading) {
     return (
