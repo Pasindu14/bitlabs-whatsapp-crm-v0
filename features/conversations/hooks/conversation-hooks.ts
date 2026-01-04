@@ -23,26 +23,42 @@ import type {
   ArchiveConversationInput,
 } from '../schemas/conversation-schema';
 
+export const conversationKeys = {
+  all: ['conversations'] as const,
+  lists: () => [...conversationKeys.all, 'list'] as const,
+  list: (filter: ConversationListFilter) => [...conversationKeys.lists(), filter] as const,
+  details: () => [...conversationKeys.all, 'detail'] as const,
+  detail: (id: number) => [...conversationKeys.details(), id] as const,
+};
+
+export const messageKeys = {
+  all: ['messages'] as const,
+  lists: () => [...messageKeys.all, 'list'] as const,
+  list: (conversationId: number) => [...messageKeys.lists(), conversationId] as const,
+  details: () => [...messageKeys.all, 'detail'] as const,
+  detail: (id: number) => [...messageKeys.details(), id] as const,
+};
+
 export function useConversations(filter: ConversationListFilter) {
   return useQuery({
-    queryKey: ['conversations', filter.companyId, filter.filterType, filter.searchTerm, filter.cursor],
+    queryKey: conversationKeys.list(filter),
     queryFn: async () => {
       const result = await listConversationsAction(filter);
       if (!result.ok) throw new Error(result.error || 'Failed to load conversations');
       return result.data;
     },
     staleTime: 30000,
+    refetchOnWindowFocus: false,
     gcTime: 5 * 60 * 1000,
   });
 }
 
 export function useConversationMessages(conversationId: number, companyId: number) {
   return useInfiniteQuery({
-    queryKey: ['messages', conversationId],
+    queryKey: messageKeys.list(conversationId),
     queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
       const result = await getConversationMessagesAction({
         conversationId,
-        companyId,
         cursor: pageParam,
         limit: 50,
       });
@@ -52,6 +68,7 @@ export function useConversationMessages(conversationId: number, companyId: numbe
     getNextPageParam: (lastPage) => (lastPage?.hasMore ? lastPage.previousCursor : undefined),
     initialPageParam: undefined as string | undefined,
     staleTime: 10000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -61,13 +78,16 @@ export function useSendNewMessage() {
   return useMutation({
     mutationFn: async (input: SendNewMessageInput) => {
       const result = await sendNewMessageAction(input);
-      if (!result.success) throw new Error(result.error);
-      return result;
+      if (!result.ok) throw new Error(result.error);
+      return result.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
-      queryClient.invalidateQueries({ queryKey: ['messages', data.conversationId] });
+      queryClient.invalidateQueries({ queryKey: conversationKeys.all });
+      if (data?.success && data.conversationId) {
+        queryClient.invalidateQueries({ queryKey: messageKeys.list(data.conversationId) });
+      }
     },
+    retry: false,
   });
 }
 
@@ -77,12 +97,13 @@ export function useRetryFailedMessage() {
   return useMutation({
     mutationFn: async (messageId: number) => {
       const result = await retryFailedMessageAction(messageId);
-      if (!result.success) throw new Error(result.error);
-      return result;
+      if (!result.ok) throw new Error(result.error);
+      return result.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: messageKeys.all });
     },
+    retry: false,
   });
 }
 
@@ -95,8 +116,9 @@ export function useMarkConversationAsRead() {
       if (!result.ok) throw new Error(result.error);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: conversationKeys.all });
     },
+    retry: false,
   });
 }
 
@@ -109,8 +131,9 @@ export function useAssignConversation() {
       if (!result.ok) throw new Error(result.error);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: conversationKeys.all });
     },
+    retry: false,
   });
 }
 
@@ -123,9 +146,10 @@ export function useClearConversation() {
       if (!result.ok) throw new Error(result.error);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: conversationKeys.all });
+      queryClient.invalidateQueries({ queryKey: messageKeys.all });
     },
+    retry: false,
   });
 }
 
@@ -138,8 +162,9 @@ export function useDeleteConversation() {
       if (!result.ok) throw new Error(result.error);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: conversationKeys.all });
     },
+    retry: false,
   });
 }
 
@@ -152,8 +177,9 @@ export function useArchiveConversation() {
       if (!result.ok) throw new Error(result.error);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: conversationKeys.all });
     },
+    retry: false,
   });
 }
 
@@ -166,7 +192,8 @@ export function useUnarchiveConversation() {
       if (!result.ok) throw new Error(result.error);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: conversationKeys.all });
     },
+    retry: false,
   });
 }

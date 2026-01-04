@@ -1,5 +1,6 @@
 'use client';
 
+import { useSession } from 'next-auth/react';
 import { Plus } from 'lucide-react';
 import { ConversationList } from '@/features/conversations/components/conversation-list';
 import { MessageList } from '@/features/conversations/components/message-list';
@@ -13,6 +14,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
 export default function ConversationsPage() {
+  const session = useSession();
   const {
     selectedConversationId,
     filterType,
@@ -22,6 +24,9 @@ export default function ConversationsPage() {
   } = useConversationStore();
 
   const { isPending: isSending } = useSendNewMessage();
+
+  const sessionUser = session.data?.user as { companyId?: number } | undefined;
+  const companyId = sessionUser?.companyId || 0;
 
   const handleSendMessage = () => {
     if (!selectedConversationId) {
@@ -83,7 +88,7 @@ export default function ConversationsPage() {
             <div className="flex-1 overflow-hidden">
               <MessageList
                 conversationId={selectedConversationId}
-                companyId={0}
+                companyId={companyId}
               />
             </div>
 

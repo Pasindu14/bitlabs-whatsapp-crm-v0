@@ -72,7 +72,6 @@ export type MarkAsReadInput = z.infer<typeof markAsReadSchema>;
 // Get messages schema
 export const getMessagesSchema = z.object({
   conversationId: z.number().int().positive(),
-  companyId: z.number().int().positive(),
   cursor: z.string().optional(),
   limit: z.number().int().min(1).max(100).default(50),
 });

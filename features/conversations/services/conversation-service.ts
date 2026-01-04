@@ -2,6 +2,8 @@ import { db } from '@/db/drizzle';
 import { contactsTable, conversationsTable, messagesTable } from '@/db/schema';
 import { eq, and, desc, lt } from 'drizzle-orm';
 import { createPerformanceLogger } from '@/lib/logger';
+import { Result } from '@/lib/result';
+import { AuditLogService } from '@/lib/audit-log.service';
 import type {
   ContactResponse,
   ConversationResponse,
@@ -11,18 +13,8 @@ import type {
   MessageDirection,
 } from '../schemas/conversation-schema';
 
-interface Result<T> {
-  success: true;
-  data: T;
-}
 
-interface ErrorResult {
-  success: false;
-  error: string;
-  code: string;
-}
-
-type ServiceResult<T> = Result<T> | ErrorResult;
+type ServiceResult<T> = Result<T>;
 
 interface CreateMessageInput {
   conversationId: number;
@@ -65,10 +57,7 @@ export class ConversationService {
 
       if (existing) {
         logger.complete(1);
-        return {
-          success: true,
-          data: existing as ContactResponse,
-        };
+        return Result.ok(existing as ContactResponse, 'Contact found');
       }
 
       const [newContact] = await db
@@ -82,18 +71,20 @@ export class ConversationService {
         })
         .returning();
 
+      await AuditLogService.log({
+        companyId,
+        userId: 0,
+        action: 'CREATE',
+        resourceId: newContact.id,
+        entityType: 'contact',
+        newValues: { phone, name: name || null, isGroup: false },
+      });
+
       logger.complete(1);
-      return {
-        success: true,
-        data: newContact as ContactResponse,
-      };
+      return Result.ok(newContact as ContactResponse, 'Contact created');
     } catch (error) {
       logger.fail(error as Error);
-      return {
-        success: false,
-        error: 'Failed to ensure contact',
-        code: 'CONTACT_CREATE_FAILED',
-      };
+      return Result.internal('Failed to ensure contact');
     }
   }
 
@@ -114,10 +105,7 @@ export class ConversationService {
 
       if (existing) {
         logger.complete(1);
-        return {
-          success: true,
-          data: existing as ConversationResponse,
-        };
+        return Result.ok(existing as ConversationResponse, 'Conversation found');
       }
 
       const [newConversation] = await db
@@ -131,18 +119,20 @@ export class ConversationService {
         })
         .returning();
 
+      await AuditLogService.log({
+        companyId,
+        userId: 0,
+        action: 'CREATE',
+        resourceId: newConversation.id,
+        entityType: 'conversation',
+        newValues: { contactId, unreadCount: 0, isArchived: false },
+      });
+
       logger.complete(1);
-      return {
-        success: true,
-        data: newConversation as ConversationResponse,
-      };
+      return Result.ok(newConversation as ConversationResponse, 'Conversation created');
     } catch (error) {
       logger.fail(error as Error);
-      return {
-        success: false,
-        error: 'Failed to ensure conversation',
-        code: 'CONVERSATION_CREATE_FAILED',
-      };
+      return Result.internal('Failed to ensure conversation');
     }
   }
 
@@ -170,23 +160,26 @@ export class ConversationService {
         })
         .returning();
 
+      await AuditLogService.log({
+        companyId: input.companyId,
+        userId: input.createdBy,
+        action: 'CREATE',
+        resourceId: newMessage.id,
+        entityType: 'message',
+        newValues: { conversationId: input.conversationId, direction: input.direction, status: input.status },
+      });
+
       logger.complete(1);
-      return {
-        success: true,
-        data: newMessage as MessageResponse,
-      };
+      return Result.ok(newMessage as MessageResponse, 'Message created');
     } catch (error) {
       logger.fail(error as Error);
-      return {
-        success: false,
-        error: 'Failed to create message',
-        code: 'MESSAGE_INSERT_FAILED',
-      };
+      return Result.internal('Failed to create message');
     }
   }
 
   static async updateMessageStatus(
     messageId: number,
+    companyId: number,
     status: MessageStatus,
     providerMessageId?: string,
     errorMessage?: string
@@ -203,26 +196,19 @@ export class ConversationService {
           errorMessage: errorMessage || null,
           updatedAt: new Date(),
         })
-        .where(eq(messagesTable.id, messageId));
+        .where(and(eq(messagesTable.id, messageId), eq(messagesTable.companyId, companyId)));
 
       logger.complete();
-      logger.complete();
-      return {
-        success: true,
-        data: undefined,
-      };
+      return Result.ok(undefined, 'Message status updated');
     } catch (error) {
       logger.fail(error as Error);
-      return {
-        success: false,
-        error: 'Failed to update message status',
-        code: 'UNKNOWN',
-      };
+      return Result.internal('Failed to update message status');
     }
   }
 
   static async updateConversationLastMessage(
     conversationId: number,
+    companyId: number,
     messageId: number,
     preview: string
   ): Promise<ServiceResult<void>> {
@@ -238,30 +224,24 @@ export class ConversationService {
           lastMessageTime: new Date(),
           updatedAt: new Date(),
         })
-        .where(eq(conversationsTable.id, conversationId));
+        .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.companyId, companyId)));
 
       logger.complete();
-      return {
-        success: true,
-        data: undefined,
-      };
+      return Result.ok(undefined, 'Conversation updated');
     } catch (error) {
       logger.fail(error as Error);
-      return {
-        success: false,
-        error: 'Failed to update conversation',
-        code: 'UNKNOWN',
-      };
+      return Result.internal('Failed to update conversation');
     }
   }
 
   static async getConversationMessages(
     conversationId: number,
+    companyId: number,
     cursor?: string,
     limit: number = 50
   ): Promise<ServiceResult<MessagePage>> {
     const logger = createPerformanceLogger('ConversationService.getConversationMessages', {
-      context: { conversationId, limit, ...(cursor ? { cursor } : {}) },
+      context: { conversationId, companyId, limit, ...(cursor ? { cursor } : {}) },
     });
     try {
       const fetchLimit = limit + 1;
@@ -277,11 +257,13 @@ export class ConversationService {
         where: cursorCondition
           ? and(
               eq(messagesTable.conversationId, conversationId),
+              eq(messagesTable.companyId, companyId),
               eq(messagesTable.isActive, true),
               cursorCondition
             )
           : and(
               eq(messagesTable.conversationId, conversationId),
+              eq(messagesTable.companyId, companyId),
               eq(messagesTable.isActive, true)
             ),
         orderBy: [desc(messagesTable.createdAt), desc(messagesTable.id)],
@@ -295,21 +277,14 @@ export class ConversationService {
         : undefined;
 
       logger.complete(items.length);
-      return {
-        success: true,
-        data: {
-          messages: items as MessageResponse[],
-          previousCursor: nextCursor,
-          hasMore,
-        },
-      };
+      return Result.ok({
+        messages: items as MessageResponse[],
+        previousCursor: nextCursor,
+        hasMore,
+      }, 'Messages loaded');
     } catch (error) {
       logger.fail(error as Error);
-      return {
-        success: false,
-        error: 'Failed to fetch messages',
-        code: 'UNKNOWN',
-      };
+      return Result.internal('Failed to fetch messages');
     }
   }
 
@@ -334,20 +309,21 @@ export class ConversationService {
         cursorCondition = lt(conversationsTable.id, parseInt(cursorId, 10));
       }
 
-      let whereConditions = and(
+      const baseClauses = [
         eq(conversationsTable.companyId, filter.companyId),
         eq(conversationsTable.isActive, true),
-        filter.includeArchived ? undefined : eq(conversationsTable.isArchived, false)
-      );
-
-      // Apply filter type
-      if (filter.filterType === 'favorites') {
-        whereConditions = and(whereConditions, eq(conversationsTable.isFavorite, true));
-      }
+        filter.includeArchived ? undefined : eq(conversationsTable.isArchived, false),
+      ].filter(Boolean);
 
       if (cursorCondition) {
-        whereConditions = and(whereConditions, cursorCondition);
+        baseClauses.push(cursorCondition);
       }
+
+      if (filter.filterType === 'favorites') {
+        baseClauses.push(eq(conversationsTable.isFavorite, true));
+      }
+
+      const whereConditions = and(...baseClauses);
 
       const results = await db.query.conversationsTable.findMany({
         where: whereConditions,
@@ -391,27 +367,24 @@ export class ConversationService {
         : undefined;
 
       logger.complete(items.length);
-      return {
-        success: true,
-        data: {
-          conversations: items as ConversationResponse[],
-          nextCursor,
-          hasMore,
-        },
-      };
+      return Result.ok({
+        conversations: items as ConversationResponse[],
+        nextCursor,
+        hasMore,
+      }, 'Conversations loaded');
     } catch (error) {
       logger.fail(error as Error);
-      return {
-        success: false,
-        error: 'Failed to list conversations',
-        code: 'UNKNOWN',
-      };
+      return Result.internal('Failed to list conversations');
     }
   }
 
   static async markConversationAsRead(
-    conversationId: number
+    conversationId: number,
+    companyId: number
   ): Promise<ServiceResult<void>> {
+    const logger = createPerformanceLogger('ConversationService.markConversationAsRead', {
+      context: { conversationId, companyId },
+    });
     try {
       await db
         .update(conversationsTable)
@@ -419,25 +392,24 @@ export class ConversationService {
           unreadCount: 0,
           updatedAt: new Date(),
         })
-        .where(eq(conversationsTable.id, conversationId));
+        .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.companyId, companyId)));
 
-      return {
-        success: true,
-        data: undefined,
-      };
-    } catch {
-      return {
-        success: false,
-        error: 'Failed to mark conversation as read',
-        code: 'UNKNOWN',
-      };
+      logger.complete();
+      return Result.ok(undefined, 'Conversation marked as read');
+    } catch (error) {
+      logger.fail(error as Error);
+      return Result.internal('Failed to mark conversation as read');
     }
   }
 
   static async assignConversationToUser(
     conversationId: number,
+    companyId: number,
     userId: number | null
   ): Promise<ServiceResult<void>> {
+    const logger = createPerformanceLogger('ConversationService.assignConversationToUser', {
+      context: { conversationId, companyId, userId },
+    });
     try {
       await db
         .update(conversationsTable)
@@ -445,35 +417,32 @@ export class ConversationService {
           assignedToUserId: userId,
           updatedAt: new Date(),
         })
-        .where(eq(conversationsTable.id, conversationId));
+        .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.companyId, companyId)));
 
-      return {
-        success: true,
-        data: undefined,
-      };
-    } catch {
-      return {
-        success: false,
-        error: 'Failed to assign conversation',
-        code: 'UNKNOWN',
-      };
+      logger.complete();
+      return Result.ok(undefined, 'Conversation assigned');
+    } catch (error) {
+      logger.fail(error as Error);
+      return Result.internal('Failed to assign conversation');
     }
   }
 
   static async clearConversation(
-    conversationId: number
+    conversationId: number,
+    companyId: number
   ): Promise<ServiceResult<void>> {
+    const logger = createPerformanceLogger('ConversationService.clearConversation', {
+      context: { conversationId, companyId },
+    });
     try {
-      // Soft delete all messages
       await db
         .update(messagesTable)
         .set({
           isActive: false,
           updatedAt: new Date(),
         })
-        .where(eq(messagesTable.conversationId, conversationId));
+        .where(and(eq(messagesTable.conversationId, conversationId), eq(messagesTable.companyId, companyId)));
 
-      // Reset conversation
       await db
         .update(conversationsTable)
         .set({
@@ -482,59 +451,55 @@ export class ConversationService {
           lastMessagePreview: null,
           updatedAt: new Date(),
         })
-        .where(eq(conversationsTable.id, conversationId));
+        .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.companyId, companyId)));
 
-      return {
-        success: true,
-        data: undefined,
-      };
-    } catch {
-      return {
-        success: false,
-        error: 'Failed to clear conversation',
-        code: 'UNKNOWN',
-      };
+      logger.complete();
+      return Result.ok(undefined, 'Conversation cleared');
+    } catch (error) {
+      logger.fail(error as Error);
+      return Result.internal('Failed to clear conversation');
     }
   }
 
   static async deleteConversation(
-    conversationId: number
+    conversationId: number,
+    companyId: number
   ): Promise<ServiceResult<void>> {
+    const logger = createPerformanceLogger('ConversationService.deleteConversation', {
+      context: { conversationId, companyId },
+    });
     try {
-      // Soft delete all messages
       await db
         .update(messagesTable)
         .set({
           isActive: false,
           updatedAt: new Date(),
         })
-        .where(eq(messagesTable.conversationId, conversationId));
+        .where(and(eq(messagesTable.conversationId, conversationId), eq(messagesTable.companyId, companyId)));
 
-      // Soft delete conversation
       await db
         .update(conversationsTable)
         .set({
           isActive: false,
           updatedAt: new Date(),
         })
-        .where(eq(conversationsTable.id, conversationId));
+        .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.companyId, companyId)));
 
-      return {
-        success: true,
-        data: undefined,
-      };
-    } catch {
-      return {
-        success: false,
-        error: 'Failed to delete conversation',
-        code: 'UNKNOWN',
-      };
+      logger.complete();
+      return Result.ok(undefined, 'Conversation deleted');
+    } catch (error) {
+      logger.fail(error as Error);
+      return Result.internal('Failed to delete conversation');
     }
   }
 
   static async archiveConversation(
-    conversationId: number
+    conversationId: number,
+    companyId: number
   ): Promise<ServiceResult<void>> {
+    const logger = createPerformanceLogger('ConversationService.archiveConversation', {
+      context: { conversationId, companyId },
+    });
     try {
       await db
         .update(conversationsTable)
@@ -542,24 +507,23 @@ export class ConversationService {
           isArchived: true,
           updatedAt: new Date(),
         })
-        .where(eq(conversationsTable.id, conversationId));
+        .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.companyId, companyId)));
 
-      return {
-        success: true,
-        data: undefined,
-      };
-    } catch {
-      return {
-        success: false,
-        error: 'Failed to archive conversation',
-        code: 'UNKNOWN',
-      };
+      logger.complete();
+      return Result.ok(undefined, 'Conversation archived');
+    } catch (error) {
+      logger.fail(error as Error);
+      return Result.internal('Failed to archive conversation');
     }
   }
 
   static async unarchiveConversation(
-    conversationId: number
+    conversationId: number,
+    companyId: number
   ): Promise<ServiceResult<void>> {
+    const logger = createPerformanceLogger('ConversationService.unarchiveConversation', {
+      context: { conversationId, companyId },
+    });
     try {
       await db
         .update(conversationsTable)
@@ -567,18 +531,13 @@ export class ConversationService {
           isArchived: false,
           updatedAt: new Date(),
         })
-        .where(eq(conversationsTable.id, conversationId));
+        .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.companyId, companyId)));
 
-      return {
-        success: true,
-        data: undefined,
-      };
-    } catch {
-      return {
-        success: false,
-        error: 'Failed to unarchive conversation',
-        code: 'UNKNOWN',
-      };
+      logger.complete();
+      return Result.ok(undefined, 'Conversation unarchived');
+    } catch (error) {
+      logger.fail(error as Error);
+      return Result.internal('Failed to unarchive conversation');
     }
   }
 }

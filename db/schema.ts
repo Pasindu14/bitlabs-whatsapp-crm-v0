@@ -1,4 +1,5 @@
 import { pgTable, text, timestamp, serial, integer, boolean, index, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 
 export const companiesTable = pgTable("companies", {
@@ -284,4 +285,22 @@ export const messagesTable = pgTable("messages", {
     index("messages_conversation_created_at_id_idx")
         .on(table.conversationId.asc(), table.createdAt.desc(), table.id.asc()),
 ]);
+
+export const conversationRelations = relations(conversationsTable, ({ one }) => ({
+  contact: one(contactsTable, {
+    fields: [conversationsTable.contactId],
+    references: [contactsTable.id],
+  }),
+}));
+
+export const messageRelations = relations(messagesTable, ({ one }) => ({
+  conversation: one(conversationsTable, {
+    fields: [messagesTable.conversationId],
+    references: [conversationsTable.id],
+  }),
+  contact: one(contactsTable, {
+    fields: [messagesTable.contactId],
+    references: [contactsTable.id],
+  }),
+}));
 

@@ -1,94 +1,46 @@
 'use server';
 
+import { withAction } from '@/lib/server-action-helper';
+import { Result } from '@/lib/result';
+import { z } from 'zod';
 import { MessageService } from '../services/message-service';
 import {
   sendNewMessageClientSchema,
-  sendNewMessageServerSchema,
   sendNewMessageOutputSchema,
   type SendNewMessageInput,
   type SendNewMessageOutput,
 } from '../schemas/conversation-schema';
-import { auth } from '@/auth';
 
-interface SessionUser {
-  id: string | number;
-  companyId: string | number;
-  [key: string]: unknown;
-}
-
-export async function sendNewMessageAction(
-  input: SendNewMessageInput
-): Promise<SendNewMessageOutput> {
-  try {
-    const session = await auth();
-
-    if (!session?.user) {
-      return {
-        success: false,
-        error: 'Unauthorized',
-        code: 'UNKNOWN',
-      };
-    }
-
-    
-  
-    // Validate client input
-    const validatedInput = sendNewMessageClientSchema.parse(input);
-  
-
-    // Create server input with auth context
-    const user = session.user as SessionUser;
-
-  
-
-    const serverInput = sendNewMessageServerSchema.parse({
-      ...validatedInput,
-      companyId: typeof user.companyId === 'string' ? parseInt(user.companyId, 10) : user.companyId,
-      userId: typeof user.id === 'string' ? parseInt(user.id, 10) : user.id,
-    });
-
-    
-
+export const sendNewMessageAction = withAction<SendNewMessageInput, SendNewMessageOutput>(
+  'conversations.sendMessage',
+  async (auth, input) => {
+    const serverInput = {
+      ...input,
+      companyId: auth.companyId,
+      userId: auth.userId,
+    };
 
     const result = await MessageService.sendNewMessage(serverInput);
+    if (!result.isOk) return result;
 
-    return sendNewMessageOutputSchema.parse(result);
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to send message',
-      code: 'UNKNOWN',
-    };
-  }
-}
+    const validated = sendNewMessageOutputSchema.parse(result.data);
+    return Result.ok(validated, 'Message sent');
+  },
+  { schema: sendNewMessageClientSchema }
+);
 
-export async function retryFailedMessageAction(
-  messageId: number
-): Promise<SendNewMessageOutput> {
-  try {
-    const session = await auth();
-
-    if (!session?.user) {
-      return {
-        success: false,
-        error: 'Unauthorized',
-        code: 'UNKNOWN',
-      };
-    }
-
-    const user = session.user as SessionUser;
+export const retryFailedMessageAction = withAction<number, SendNewMessageOutput>(
+  'conversations.retryMessage',
+  async (auth, messageId) => {
     const result = await MessageService.retryFailedMessage(
       messageId,
-      typeof user.companyId === 'string' ? parseInt(user.companyId, 10) : user.companyId,
-      typeof user.id === 'string' ? parseInt(user.id, 10) : user.id
+      auth.companyId,
+      auth.userId
     );
+    if (!result.isOk) return result;
 
-    return sendNewMessageOutputSchema.parse(result);
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to retry message',
-      code: 'UNKNOWN',
-    };
-  }
-}
+    const validated = sendNewMessageOutputSchema.parse(result.data);
+    return Result.ok(validated, 'Message retried');
+  },
+  { schema: z.number().int().positive() }
+);

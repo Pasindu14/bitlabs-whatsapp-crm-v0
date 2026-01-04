@@ -1,6 +1,7 @@
 'use server';
 
-import { createPerformanceLogger } from '@/lib/logger';
+import { withAction } from '@/lib/server-action-helper';
+import { Result } from '@/lib/result';
 import { ConversationService } from '../services/conversation-service';
 import {
   conversationFilterSchema,
@@ -23,246 +24,98 @@ import {
   type MessageListOutput,
 } from '../schemas/conversation-schema';
 
-export async function listConversationsAction(
-  filter: ConversationListFilter
-): Promise<{ ok: boolean; data?: ConversationListOutput; error?: string }> {
-  const logger = createPerformanceLogger('ConversationActions.listConversations', {
-    context: {
-      companyId: filter.companyId,
-      filterType: filter.filterType,
-      includeArchived: filter.includeArchived,
-    },
-  });
-  try {
-    const validatedFilter = conversationFilterSchema.parse(filter);
-
-    const result = await ConversationService.listConversations(validatedFilter);
-
-    if (!result.success) {
-      logger.fail(result.error);
-      return { ok: false, error: result.error };
-    }
+export const listConversationsAction = withAction<ConversationListFilter, ConversationListOutput>(
+  'conversations.list',
+  async (auth, filter) => {
+    const result = await ConversationService.listConversations(filter);
+    if (!result.isOk) return result;
 
     const validated = conversationListOutputSchema.parse(result.data);
-    logger.complete(validated.conversations.length);
-    return { ok: true, data: validated };
-  } catch (error) {
-    logger.fail(error as Error);
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : 'Failed to list conversations',
-    };
-  }
-}
+    return Result.ok(validated, 'Conversations loaded');
+  },
+  { schema: conversationFilterSchema }
+);
 
-export async function getConversationMessagesAction(
-  input: GetMessagesInput
-): Promise<{ ok: boolean; data?: MessageListOutput; error?: string }> {
-  const logger = createPerformanceLogger('ConversationActions.getConversationMessages', {
-    context: {
-      conversationId: input.conversationId,
-      limit: input.limit,
-    },
-  });
-  try {
-    const validatedInput = getMessagesSchema.parse(input);
-
+export const getConversationMessagesAction = withAction<GetMessagesInput, MessageListOutput>(
+  'conversations.getMessages',
+  async (auth, input) => {
     const result = await ConversationService.getConversationMessages(
-      validatedInput.conversationId,
-      validatedInput.cursor,
-      validatedInput.limit
+      input.conversationId,
+      auth.companyId,
+      input.cursor,
+      input.limit
     );
-
-    if (!result.success) {
-      logger.fail(result.error);
-      return { ok: false, error: result.error };
-    }
+    if (!result.isOk) return result;
 
     const validated = messageListOutputSchema.parse(result.data);
-    logger.complete(validated.messages.length);
-    return { ok: true, data: validated };
-  } catch (error) {
-    logger.fail(error as Error);
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : 'Failed to get messages',
-    };
-  }
-}
+    return Result.ok(validated, 'Messages loaded');
+  },
+  { schema: getMessagesSchema }
+);
 
-export async function markConversationAsReadAction(
-  input: MarkAsReadInput
-): Promise<{ ok: boolean; error?: string }> {
-  const logger = createPerformanceLogger('ConversationActions.markConversationAsRead', {
-    context: {
-      conversationId: input.conversationId,
-    },
-  });
-  try {
-    const validatedInput = markAsReadSchema.parse(input);
-
-    const result = await ConversationService.markConversationAsRead(
-      validatedInput.conversationId
+export const markConversationAsReadAction = withAction<MarkAsReadInput, void>(
+  'conversations.markAsRead',
+  async (auth, input) => {
+    return await ConversationService.markConversationAsRead(
+      input.conversationId,
+      auth.companyId
     );
+  },
+  { schema: markAsReadSchema }
+);
 
-    if (!result.success) {
-      logger.fail(result.error);
-      return { ok: false, error: result.error };
-    }
-
-    logger.complete();
-    return { ok: true };
-  } catch (error) {
-    logger.fail(error as Error);
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : 'Failed to mark as read',
-    };
-  }
-}
-
-export async function assignConversationToUserAction(
-  input: AssignConversationInput
-): Promise<{ ok: boolean; error?: string }> {
-  const logger = createPerformanceLogger('ConversationActions.assignConversationToUser', {
-    context: { conversationId: input.conversationId, userId: input.userId },
-  });
-  try {
-    const validatedInput = assignConversationSchema.parse(input);
-
-    const result = await ConversationService.assignConversationToUser(
-      validatedInput.conversationId,
-      validatedInput.userId
+export const assignConversationToUserAction = withAction<AssignConversationInput, void>(
+  'conversations.assign',
+  async (auth, input) => {
+    return await ConversationService.assignConversationToUser(
+      input.conversationId,
+      auth.companyId,
+      input.userId
     );
+  },
+  { schema: assignConversationSchema }
+);
 
-    if (!result.success) {
-      logger.fail(result.error);
-      return { ok: false, error: result.error };
-    }
-
-    logger.complete();
-    return { ok: true };
-  } catch (error) {
-    logger.fail(error as Error);
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : 'Failed to assign conversation',
-    };
-  }
-}
-
-export async function clearConversationAction(
-  input: ClearConversationInput
-): Promise<{ ok: boolean; error?: string }> {
-  const logger = createPerformanceLogger('ConversationActions.clearConversation', {
-    context: { conversationId: input.conversationId },
-  });
-  try {
-    const validatedInput = clearConversationSchema.parse(input);
-
-    const result = await ConversationService.clearConversation(
-      validatedInput.conversationId
+export const clearConversationAction = withAction<ClearConversationInput, void>(
+  'conversations.clear',
+  async (auth, input) => {
+    return await ConversationService.clearConversation(
+      input.conversationId,
+      auth.companyId
     );
+  },
+  { schema: clearConversationSchema }
+);
 
-    if (!result.success) {
-      logger.fail(result.error);
-      return { ok: false, error: result.error };
-    }
-
-    logger.complete();
-    return { ok: true };
-  } catch (error) {
-    logger.fail(error as Error);
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : 'Failed to clear conversation',
-    };
-  }
-}
-
-export async function deleteConversationAction(
-  input: DeleteConversationInput
-): Promise<{ ok: boolean; error?: string }> {
-  const logger = createPerformanceLogger('ConversationActions.deleteConversation', {
-    context: { conversationId: input.conversationId },
-  });
-  try {
-    const validatedInput = deleteConversationSchema.parse(input);
-
-    const result = await ConversationService.deleteConversation(
-      validatedInput.conversationId
+export const deleteConversationAction = withAction<DeleteConversationInput, void>(
+  'conversations.delete',
+  async (auth, input) => {
+    return await ConversationService.deleteConversation(
+      input.conversationId,
+      auth.companyId
     );
+  },
+  { schema: deleteConversationSchema }
+);
 
-    if (!result.success) {
-      logger.fail(result.error);
-      return { ok: false, error: result.error };
-    }
-
-    logger.complete();
-    return { ok: true };
-  } catch (error) {
-    logger.fail(error as Error);
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : 'Failed to delete conversation',
-    };
-  }
-}
-
-export async function archiveConversationAction(
-  input: ArchiveConversationInput
-): Promise<{ ok: boolean; error?: string }> {
-  const logger = createPerformanceLogger('ConversationActions.archiveConversation', {
-    context: { conversationId: input.conversationId },
-  });
-  try {
-    const validatedInput = archiveConversationSchema.parse(input);
-
-    const result = await ConversationService.archiveConversation(
-      validatedInput.conversationId
+export const archiveConversationAction = withAction<ArchiveConversationInput, void>(
+  'conversations.archive',
+  async (auth, input) => {
+    return await ConversationService.archiveConversation(
+      input.conversationId,
+      auth.companyId
     );
+  },
+  { schema: archiveConversationSchema }
+);
 
-    if (!result.success) {
-      logger.fail(result.error);
-      return { ok: false, error: result.error };
-    }
-
-    logger.complete();
-    return { ok: true };
-  } catch (error) {
-    logger.fail(error as Error);
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : 'Failed to archive conversation',
-    };
-  }
-}
-
-export async function unarchiveConversationAction(
-  input: ArchiveConversationInput
-): Promise<{ ok: boolean; error?: string }> {
-  const logger = createPerformanceLogger('ConversationActions.unarchiveConversation', {
-    context: { conversationId: input.conversationId },
-  });
-  try {
-    const validatedInput = archiveConversationSchema.parse(input);
-
-    const result = await ConversationService.unarchiveConversation(
-      validatedInput.conversationId
+export const unarchiveConversationAction = withAction<ArchiveConversationInput, void>(
+  'conversations.unarchive',
+  async (auth, input) => {
+    return await ConversationService.unarchiveConversation(
+      input.conversationId,
+      auth.companyId
     );
-
-    if (!result.success) {
-      logger.fail(result.error);
-      return { ok: false, error: result.error };
-    }
-
-    logger.complete();
-    return { ok: true };
-  } catch (error) {
-    logger.fail(error as Error);
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : 'Failed to unarchive conversation',
-    };
-  }
-}
+  },
+  { schema: archiveConversationSchema }
+);

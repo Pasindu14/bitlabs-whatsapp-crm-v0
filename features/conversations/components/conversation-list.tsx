@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { MessageCircle } from 'lucide-react';
-import type { ConversationFilterType, ConversationResponse } from '../schemas/conversation-schema';
+import type { ConversationFilterType, ConversationResponse, ContactResponse } from '../schemas/conversation-schema';
 
 interface ConversationListProps {
   filterType: ConversationFilterType;
@@ -23,7 +23,7 @@ export function ConversationList({
   const session = useSession();
   const { selectedConversationId, setSelectedConversation } = useConversationStore();
 
-  const sessionUser = session.data?.user as unknown as { companyId?: number };
+  const sessionUser = session.data?.user as { companyId?: number } | undefined;
   const { data, isLoading, error } = useConversations({
     companyId: sessionUser?.companyId || 0,
     filterType,
@@ -71,8 +71,7 @@ export function ConversationList({
     <ScrollArea className="h-full">
       <div className="space-y-1 p-2">
         {data.conversations.map((conversation) => {
-          const conv = conversation as ConversationResponse & { contact?: unknown };
-          const contact = (conv.contact as unknown as { name?: string; phone: string; isGroup?: boolean }) || {};
+          const contact = conversation.contact as ContactResponse | undefined;
           const isSelected = selectedConversationId === conversation.id;
 
           return (
@@ -88,7 +87,7 @@ export function ConversationList({
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm truncate">
-                    {contact.name || contact.phone}
+                    {contact?.name || contact?.phone || 'Unknown'}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {conversation.lastMessagePreview || 'No messages'}

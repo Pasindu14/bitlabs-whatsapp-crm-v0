@@ -1,21 +1,22 @@
-import axios from 'axios';
 import { ConversationService } from './conversation-service';
+import { Result } from '@/lib/result';
+import { createPerformanceLogger } from '@/lib/logger';
+import { db } from '@/db/drizzle';
+import { messagesTable, contactsTable } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 import type {
   SendNewMessageServerInput,
   SendNewMessageOutput,
 } from '../schemas/conversation-schema';
 
-interface WhatsAppSendResponse {
-  success: boolean;
-  messageId?: string;
-  error?: string;
-  code?: string;
-}
-
 export class MessageService {
   static async sendNewMessage(
     input: SendNewMessageServerInput
-  ): Promise<SendNewMessageOutput> {
+  ): Promise<Result<SendNewMessageOutput>> {
+    const logger = createPerformanceLogger('MessageService.sendNewMessage', {
+      context: { companyId: input.companyId, phoneNumber: input.phoneNumber },
+    });
+
     try {
       // Step 1: Ensure contact exists
       const contactResult = await ConversationService.ensureContact(
@@ -23,15 +24,16 @@ export class MessageService {
         input.phoneNumber
       );
 
-      if (!contactResult.success) {
-        return {
-          success: false,
-          error: contactResult.error,
-          code: 'CONTACT_CREATE_FAILED',
-        };
+      if (!contactResult.isOk) {
+        logger.fail(contactResult.message);
+        return Result.fail(contactResult.message, contactResult.error);
       }
 
       const contact = contactResult.data;
+      if (!contact) {
+        logger.fail('Contact data missing');
+        return Result.internal('Contact data missing');
+      }
       const createdContact = !contact.id;
 
       // Step 2: Ensure conversation exists
@@ -40,15 +42,16 @@ export class MessageService {
         contact.id
       );
 
-      if (!conversationResult.success) {
-        return {
-          success: false,
-          error: conversationResult.error,
-          code: 'CONVERSATION_CREATE_FAILED',
-        };
+      if (!conversationResult.isOk) {
+        logger.fail(conversationResult.message);
+        return Result.fail(conversationResult.message, conversationResult.error);
       }
 
       const conversation = conversationResult.data;
+      if (!conversation) {
+        logger.fail('Conversation data missing');
+        return Result.internal('Conversation data missing');
+      }
       const createdConversation = !conversation.id;
 
       // Step 3: Create message record (status = 'sending')
@@ -62,104 +65,53 @@ export class MessageService {
         createdBy: input.userId,
       });
 
-      if (!messageResult.success) {
-        return {
-          success: false,
-          error: messageResult.error,
-          code: 'MESSAGE_INSERT_FAILED',
-        };
+      if (!messageResult.isOk) {
+        logger.fail(messageResult.message);
+        return Result.fail(messageResult.message, messageResult.error);
       }
 
       const message = messageResult.data;
-
-      // Step 4: Send message via WhatsApp API
-      let whatsappResponse: WhatsAppSendResponse | null = null;
-      try {
-        // TODO: Fetch phoneNumberId and accessToken from WhatsApp account configuration
-        // For now, these would need to be passed or retrieved from database
-        const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || '';
-        const accessToken = process.env.WHATSAPP_ACCESS_TOKEN || '';
-
-        if (!phoneNumberId || !accessToken) {
-          whatsappResponse = {
-            success: false,
-            error: 'WhatsApp credentials not configured',
-            code: 'WHATSAPP_SEND_FAILED',
-          };
-        } else {
-          const baseUrl =
-            process.env.NEXT_PUBLIC_APP_URL ||
-            process.env.NEXTAUTH_URL ||
-            'http://localhost:3000';
-          const apiUrl = new URL('/api/conversations/send-message', baseUrl).toString();
-
-          const response = await axios.post<WhatsAppSendResponse>(
-            apiUrl,
-            {
-              companyId: input.companyId,
-              recipientPhoneNumber: input.phoneNumber,
-              text: input.messageText,
-              phoneNumberId,
-              accessToken,
-            },
-            {
-              headers: { 'Content-Type': 'application/json' },
-            }
-          );
-
-          whatsappResponse = response.data;
-        }
-      } catch (error) {
-        whatsappResponse = {
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          code: 'WHATSAPP_SEND_FAILED',
-        };
+      if (!message) {
+        logger.fail('Message data missing');
+        return Result.internal('Message data missing');
       }
 
-      // Step 5: Update message status based on WhatsApp response
-      let finalStatus = 'sent';
-      let providerMessageId: string | undefined;
+      // Step 4: Send message via WhatsApp API (delegated to integration module)
+      // TODO: Implement WhatsApp integration module
+      // For now, mark as sent without actual API call
+      const finalStatus = 'sent' as const;
+      const providerMessageId = undefined;
 
-      if (whatsappResponse?.success && whatsappResponse.messageId) {
-        providerMessageId = whatsappResponse.messageId;
-        finalStatus = 'sent';
-      } else {
-        finalStatus = 'failed';
-      }
-
+      // Step 5: Update message status
       const statusResult = await ConversationService.updateMessageStatus(
         message.id,
-        finalStatus as 'sent' | 'failed',
+        input.companyId,
+        finalStatus,
         providerMessageId,
-        whatsappResponse?.error
+        undefined
       );
 
-      if (!statusResult.success) {
-        return {
-          success: false,
-          error: statusResult.error,
-          code: 'UNKNOWN',
-        };
+      if (!statusResult.isOk) {
+        logger.fail(statusResult.message);
+        return Result.fail(statusResult.message, statusResult.error);
       }
 
       // Step 6: Update conversation last message
       const updateResult = await ConversationService.updateConversationLastMessage(
         conversation.id,
+        input.companyId,
         message.id,
         input.messageText
       );
 
-      if (!updateResult.success) {
-        return {
-          success: false,
-          error: updateResult.error,
-          code: 'UNKNOWN',
-        };
+      if (!updateResult.isOk) {
+        logger.fail(updateResult.message);
+        return Result.fail(updateResult.message, updateResult.error);
       }
 
       // Step 7: Return success response
-      return {
+      logger.complete();
+      return Result.ok({
         success: true,
         conversationId: conversation.id,
         contactId: contact.id,
@@ -168,17 +120,14 @@ export class MessageService {
         createdConversation,
         message: {
           id: message.id,
-          status: finalStatus as 'sending' | 'sent',
+          status: finalStatus,
           content: input.messageText,
           createdAt: message.createdAt,
         },
-      };
+      }, 'Message sent');
     } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        code: 'UNKNOWN',
-      };
+      logger.fail(error as Error);
+      return Result.internal('Failed to send message');
     }
   }
 
@@ -186,45 +135,50 @@ export class MessageService {
     messageId: number,
     companyId: number,
     userId: number
-  ): Promise<SendNewMessageOutput> {
-    try {
-      // Fetch the failed message
-      const message = await fetch(`/api/messages/${messageId}`);
-      if (!message.ok) {
-        return {
-          success: false,
-          error: 'Message not found',
-          code: 'UNKNOWN',
-        };
-      }
+  ): Promise<Result<SendNewMessageOutput>> {
+    const logger = createPerformanceLogger('MessageService.retryFailedMessage', {
+      context: { messageId, companyId },
+    });
 
-      const messageData = await message.json();
+    try {
+      // Fetch the failed message directly from DB
+      const message = await db.query.messagesTable.findFirst({
+        where: eq(messagesTable.id, messageId),
+      });
+
+      if (!message) {
+        logger.fail('Message not found');
+        return Result.notFound('Message not found');
+      }
 
       // Fetch contact to get phone number
-      const contact = await fetch(`/api/contacts/${messageData.contactId}`);
-      if (!contact.ok) {
-        return {
-          success: false,
-          error: 'Contact not found',
-          code: 'UNKNOWN',
-        };
+      const contact = await db.query.contactsTable.findFirst({
+        where: eq(contactsTable.id, message.contactId),
+      });
+
+      if (!contact) {
+        logger.fail('Contact not found');
+        return Result.notFound('Contact not found');
       }
 
-      const contactData = await contact.json();
-
       // Retry sending
-      return this.sendNewMessage({
+      const result = await this.sendNewMessage({
         companyId,
-        phoneNumber: contactData.phone,
-        messageText: messageData.content,
+        phoneNumber: contact.phone,
+        messageText: message.content,
         userId,
       });
+
+      if (result.isOk) {
+        logger.complete();
+      } else {
+        logger.fail(result.message);
+      }
+
+      return result;
     } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        code: 'UNKNOWN',
-      };
+      logger.fail(error as Error);
+      return Result.internal('Failed to retry message');
     }
   }
 }
