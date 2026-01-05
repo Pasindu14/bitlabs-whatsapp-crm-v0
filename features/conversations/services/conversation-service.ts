@@ -74,7 +74,16 @@ export class ConversationService {
       logger.complete(1);
       return Result.ok(updated as ContactResponse, 'Contact name updated');
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "contact",
+        entityId: contactId,
+        companyId,
+        userId: 0,
+        action: "UPDATE",
+        error: errorMessage,
+      });
       return Result.internal('Failed to update contact name');
     }
   }
@@ -123,7 +132,16 @@ export class ConversationService {
       logger.complete(1);
       return Result.ok(newContact as ContactResponse, 'Contact created');
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "contact",
+        entityId: null,
+        companyId,
+        userId: 0,
+        action: "CREATE",
+        error: errorMessage,
+      });
       return Result.internal('Failed to ensure contact');
     }
   }
@@ -171,7 +189,16 @@ export class ConversationService {
       logger.complete(1);
       return Result.ok(newConversation as ConversationResponse, 'Conversation created');
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "conversation",
+        entityId: null,
+        companyId,
+        userId: 0,
+        action: "CREATE",
+        error: errorMessage,
+      });
       return Result.internal('Failed to ensure conversation');
     }
   }
@@ -212,7 +239,16 @@ export class ConversationService {
       logger.complete(1);
       return Result.ok(newMessage as MessageResponse, 'Message created');
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "message",
+        entityId: null,
+        companyId: input.companyId,
+        userId: input.createdBy,
+        action: "CREATE",
+        error: errorMessage,
+      });
       return Result.internal('Failed to create message');
     }
   }
@@ -222,7 +258,8 @@ export class ConversationService {
     companyId: number,
     status: MessageStatus,
     providerMessageId?: string,
-    errorMessage?: string
+    errorMessage?: string,
+    userId?: number
   ): Promise<ServiceResult<void>> {
     const logger = createPerformanceLogger('ConversationService.updateMessageStatus', {
       context: { messageId, status },
@@ -238,10 +275,28 @@ export class ConversationService {
         })
         .where(and(eq(messagesTable.id, messageId), eq(messagesTable.companyId, companyId)));
 
+      await AuditLogService.log({
+        companyId,
+        userId: userId || 0,
+        action: 'UPDATE',
+        resourceId: messageId,
+        entityType: 'message',
+        newValues: { status, providerMessageId },
+      });
+
       logger.complete();
       return Result.ok(undefined, 'Message status updated');
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "message",
+        entityId: messageId,
+        companyId,
+        userId: userId || 0,
+        action: "UPDATE",
+        error: errorMessage,
+      });
       return Result.internal('Failed to update message status');
     }
   }
@@ -250,7 +305,8 @@ export class ConversationService {
     conversationId: number,
     companyId: number,
     messageId: number,
-    preview: string
+    preview: string,
+    userId?: number
   ): Promise<ServiceResult<void>> {
     const logger = createPerformanceLogger('ConversationService.updateConversationLastMessage', {
       context: { conversationId, messageId },
@@ -266,10 +322,28 @@ export class ConversationService {
         })
         .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.companyId, companyId)));
 
+      await AuditLogService.log({
+        companyId,
+        userId: userId || 0,
+        action: 'UPDATE',
+        resourceId: conversationId,
+        entityType: 'conversation',
+        newValues: { lastMessageId: messageId, lastMessagePreview: preview.substring(0, 255) },
+      });
+
       logger.complete();
       return Result.ok(undefined, 'Conversation updated');
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "conversation",
+        entityId: conversationId,
+        companyId,
+        userId: userId || 0,
+        action: "UPDATE",
+        error: errorMessage,
+      });
       return Result.internal('Failed to update conversation');
     }
   }
@@ -301,7 +375,16 @@ export class ConversationService {
       logger.complete(1);
       return Result.ok(result as ConversationResponse, 'Conversation found');
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "conversation",
+        entityId: conversationId,
+        companyId,
+        userId: 0,
+        action: "READ",
+        error: errorMessage,
+      });
       return Result.internal('Failed to fetch conversation');
     }
   }
@@ -355,7 +438,16 @@ export class ConversationService {
         hasMore,
       }, 'Messages loaded');
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "message",
+        entityId: null,
+        companyId,
+        userId: 0,
+        action: "READ",
+        error: errorMessage,
+      });
       return Result.internal('Failed to fetch messages');
     }
   }
@@ -420,20 +512,6 @@ export class ConversationService {
           );
         });
       }
-
-      // Apply unread filter locally
-      if (filter.filterType === 'unread') {
-        filtered = filtered.filter((conv) => conv.unreadCount > 0);
-      }
-
-      // Apply groups filter locally
-      if (filter.filterType === 'groups') {
-        filtered = filtered.filter((conv) => {
-          const contact = conv.contact as unknown as ContactResponse;
-          return contact?.isGroup;
-        });
-      }
-      console.log('filtered user', filtered)
       // Apply assigned filter locally
       if (filter.filterType === 'assigned' && filter.assignedUserId) {
         filtered = filtered.filter((conv) => conv.assignedToUserId === filter.assignedUserId);
@@ -452,7 +530,16 @@ export class ConversationService {
         hasMore,
       }, 'Conversations loaded');
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "conversation",
+        entityId: null,
+        companyId,
+        userId: 0,
+        action: "READ",
+        error: errorMessage,
+      });
       return Result.internal('Failed to list conversations');
     }
   }
@@ -473,10 +560,28 @@ export class ConversationService {
         })
         .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.companyId, companyId)));
 
+      await AuditLogService.log({
+        companyId,
+        userId: 0,
+        action: 'UPDATE',
+        resourceId: conversationId,
+        entityType: 'conversation',
+        newValues: { unreadCount: 0 },
+      });
+
       logger.complete();
       return Result.ok(undefined, 'Conversation marked as read');
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "conversation",
+        entityId: conversationId,
+        companyId,
+        userId: 0,
+        action: "UPDATE",
+        error: errorMessage,
+      });
       return Result.internal('Failed to mark conversation as read');
     }
   }
@@ -498,10 +603,28 @@ export class ConversationService {
         })
         .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.companyId, companyId)));
 
+      await AuditLogService.log({
+        companyId,
+        userId: 0,
+        action: 'UPDATE',
+        resourceId: conversationId,
+        entityType: 'conversation',
+        newValues: { assignedToUserId: userId },
+      });
+
       logger.complete();
       return Result.ok(undefined, 'Conversation assigned');
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "conversation",
+        entityId: conversationId,
+        companyId,
+        userId: 0,
+        action: "UPDATE",
+        error: errorMessage,
+      });
       return Result.internal('Failed to assign conversation');
     }
   }
@@ -532,10 +655,28 @@ export class ConversationService {
         })
         .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.companyId, companyId)));
 
+      await AuditLogService.log({
+        companyId,
+        userId: 0,
+        action: 'UPDATE',
+        resourceId: conversationId,
+        entityType: 'conversation',
+        newValues: { unreadCount: 0, lastMessageId: null, lastMessagePreview: null },
+      });
+
       logger.complete();
       return Result.ok(undefined, 'Conversation cleared');
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "conversation",
+        entityId: conversationId,
+        companyId,
+        userId: 0,
+        action: "UPDATE",
+        error: errorMessage,
+      });
       return Result.internal('Failed to clear conversation');
     }
   }
@@ -564,10 +705,28 @@ export class ConversationService {
         })
         .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.companyId, companyId)));
 
+      await AuditLogService.log({
+        companyId,
+        userId: 0,
+        action: 'DELETE',
+        resourceId: conversationId,
+        entityType: 'conversation',
+        newValues: { isActive: false },
+      });
+
       logger.complete();
       return Result.ok(undefined, 'Conversation deleted');
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "conversation",
+        entityId: conversationId,
+        companyId,
+        userId: 0,
+        action: "DELETE",
+        error: errorMessage,
+      });
       return Result.internal('Failed to delete conversation');
     }
   }
@@ -588,10 +747,28 @@ export class ConversationService {
         })
         .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.companyId, companyId)));
 
+      await AuditLogService.log({
+        companyId,
+        userId: 0,
+        action: 'UPDATE',
+        resourceId: conversationId,
+        entityType: 'conversation',
+        newValues: { isArchived: true },
+      });
+
       logger.complete();
       return Result.ok(undefined, 'Conversation archived');
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "conversation",
+        entityId: conversationId,
+        companyId,
+        userId: 0,
+        action: "UPDATE",
+        error: errorMessage,
+      });
       return Result.internal('Failed to archive conversation');
     }
   }
@@ -612,10 +789,28 @@ export class ConversationService {
         })
         .where(and(eq(conversationsTable.id, conversationId), eq(conversationsTable.companyId, companyId)));
 
+      await AuditLogService.log({
+        companyId,
+        userId: 0,
+        action: 'UPDATE',
+        resourceId: conversationId,
+        entityType: 'conversation',
+        newValues: { isArchived: false },
+      });
+
       logger.complete();
       return Result.ok(undefined, 'Conversation unarchived');
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "conversation",
+        entityId: conversationId,
+        companyId,
+        userId: 0,
+        action: "UPDATE",
+        error: errorMessage,
+      });
       return Result.internal('Failed to unarchive conversation');
     }
   }
@@ -666,7 +861,6 @@ export class ConversationService {
         }
       );
 
-      console.log(response);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         const errorMessage = errorData?.error || `HTTP ${response.status}`;
@@ -678,7 +872,16 @@ export class ConversationService {
       logger.complete();
       return Result.ok(data, 'WhatsApp message history loaded');
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "whatsapp_account",
+        entityId: whatsappAccountId,
+        companyId,
+        userId: 0,
+        action: "READ",
+        error: errorMessage,
+      });
       return Result.internal('Failed to fetch WhatsApp message history');
     }
   }

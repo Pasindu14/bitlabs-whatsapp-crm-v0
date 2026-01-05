@@ -2,8 +2,9 @@ import { ConversationService } from './conversation-service';
 import { Result } from '@/lib/result';
 import { createPerformanceLogger } from '@/lib/logger';
 import { db } from '@/db/drizzle';
-import { messagesTable, contactsTable } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { messagesTable, contactsTable, whatsappAccountsTable } from '@/db/schema';
+import { eq, and } from 'drizzle-orm';
+import axios from 'axios';
 import type {
   SendNewMessageServerInput,
   SendNewMessageOutput,
@@ -76,19 +77,73 @@ export class MessageService {
         return Result.internal('Message data missing');
       }
 
-      // Step 4: Send message via WhatsApp API (delegated to integration module)
-      // TODO: Implement WhatsApp integration module
-      // For now, mark as sent without actual API call
-      const finalStatus = 'sent' as const;
-      const providerMessageId = undefined;
+      // Step 4: Get WhatsApp account credentials for the company
+      const whatsappAccount = await db.query.whatsappAccountsTable.findFirst({
+        where: and(
+          eq(whatsappAccountsTable.companyId, input.companyId),
+          eq(whatsappAccountsTable.isActive, true)
+        ),
+      });
 
-      // Step 5: Update message status
+      if (!whatsappAccount) {
+        logger.fail('No active WhatsApp account found for company');
+        // Update message status to failed
+        await ConversationService.updateMessageStatus(
+          message.id,
+          input.companyId,
+          'failed',
+          undefined,
+          'No active WhatsApp account configured',
+          input.userId
+        );
+        return Result.fail('No active WhatsApp account configured', { code: 'INTERNAL_ERROR' });
+      }
+
+      // Step 5: Send message via WhatsApp API
+      let finalStatus: 'sent' | 'failed' = 'sent';
+      let providerMessageId: string | undefined;
+      let errorMessage: string | undefined;
+
+      try {
+        const response = await axios.post(
+          `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/conversations/send-message`,
+          {
+            companyId: input.companyId,
+            recipientPhoneNumber: input.phoneNumber,
+            text: input.messageText,
+            phoneNumberId: whatsappAccount.phoneNumberId,
+            accessToken: whatsappAccount.accessToken,
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (response.data.success) {
+          providerMessageId = response.data.messageId;
+          logger.complete();
+        } else {
+          finalStatus = 'failed';
+          errorMessage = response.data.error || 'Failed to send via WhatsApp API';
+          logger.fail(new Error(errorMessage));
+        }
+      } catch (error) {
+        finalStatus = 'failed';
+        const axiosError = error as { response?: { data?: { error?: string } }; message?: string };
+        errorMessage = axiosError.response?.data?.error || axiosError.message || 'Failed to send via WhatsApp API';
+        logger.fail(new Error(errorMessage));
+      }
+
+      // Step 6: Update message status
       const statusResult = await ConversationService.updateMessageStatus(
         message.id,
         input.companyId,
         finalStatus,
         providerMessageId,
-        undefined
+        errorMessage,
+        input.userId
       );
 
       if (!statusResult.isOk) {
@@ -96,12 +151,18 @@ export class MessageService {
         return Result.fail(statusResult.message, statusResult.error);
       }
 
-      // Step 6: Update conversation last message
+      // If WhatsApp send failed, return error
+      if (finalStatus === 'failed') {
+        return Result.fail(errorMessage || 'Failed to send message via WhatsApp', { code: 'INTERNAL_ERROR' });
+      }
+
+      // Step 7: Update conversation last message
       const updateResult = await ConversationService.updateConversationLastMessage(
         conversation.id,
         input.companyId,
         message.id,
-        input.messageText
+        input.messageText,
+        input.userId
       );
 
       if (!updateResult.isOk) {
@@ -109,7 +170,7 @@ export class MessageService {
         return Result.fail(updateResult.message, updateResult.error);
       }
 
-      // Step 7: Return success response
+      // Step 8: Return success response
       logger.complete();
       return Result.ok({
         success: true,

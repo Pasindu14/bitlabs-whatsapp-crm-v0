@@ -3,6 +3,7 @@ import { createPerformanceLogger } from "@/lib/logger";
 import { db } from "@/db/drizzle";
 import { conversationNotesTable, conversationsTable } from "@/db/schema";
 import { eq, and, desc, lt } from "drizzle-orm";
+import { AuditLogService } from "@/lib/audit-log.service";
 import type {
   ConversationNoteCreateServerInput,
   ConversationNoteUpdateServerInput,
@@ -61,7 +62,16 @@ export class NoteService {
 
       return Result.ok(noteWithCreator as ConversationNoteResponse, "Note created successfully");
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "conversation_note",
+        entityId: null,
+        companyId: data.companyId,
+        userId: data.userId,
+        action: "CREATE",
+        error: errorMessage,
+      });
       return Result.fail("Failed to create note", { code: "INTERNAL_ERROR" });
     }
   }
@@ -101,6 +111,15 @@ export class NoteService {
         .where(eq(conversationNotesTable.id, data.noteId))
         .returning();
 
+      await AuditLogService.log({
+        companyId: data.companyId,
+        userId: data.userId,
+        action: 'UPDATE',
+        resourceId: data.noteId,
+        entityType: 'conversation_note',
+        newValues: { content: data.content, isPinned: data.isPinned },
+      });
+
       const noteWithCreator = await db.query.conversationNotesTable.findFirst({
         where: eq(conversationNotesTable.id, updatedNote.id),
         with: {
@@ -118,7 +137,16 @@ export class NoteService {
 
       return Result.ok(noteWithCreator as ConversationNoteResponse, "Note updated successfully");
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "conversation_note",
+        entityId: data.noteId,
+        companyId: data.companyId,
+        userId: data.userId,
+        action: "UPDATE",
+        error: errorMessage,
+      });
       return Result.fail("Failed to update note", { code: "INTERNAL_ERROR" });
     }
   }
@@ -152,11 +180,29 @@ export class NoteService {
         .set({ isActive: false })
         .where(eq(conversationNotesTable.id, data.noteId));
 
+      await AuditLogService.log({
+        companyId: data.companyId,
+        userId: data.userId,
+        action: 'DELETE',
+        resourceId: data.noteId,
+        entityType: 'conversation_note',
+        newValues: { isActive: false },
+      });
+
       logger.complete(1, { noteId: data.noteId });
 
       return Result.ok({ success: true }, "Note deleted successfully");
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "conversation_note",
+        entityId: data.noteId,
+        companyId: data.companyId,
+        userId: data.userId,
+        action: "DELETE",
+        error: errorMessage,
+      });
       return Result.fail("Failed to delete note", { code: "INTERNAL_ERROR" });
     }
   }
@@ -224,7 +270,16 @@ export class NoteService {
         hasMore,
       });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "conversation_note",
+        entityId: null,
+        companyId: data.companyId,
+        userId: 0,
+        action: "READ",
+        error: errorMessage,
+      });
       return Result.fail("Failed to list notes", { code: "INTERNAL_ERROR" });
     }
   }
@@ -261,7 +316,16 @@ export class NoteService {
 
       return Result.ok(note as ConversationNoteResponse);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "conversation_note",
+        entityId: data.noteId,
+        companyId: data.companyId,
+        userId: 0,
+        action: "READ",
+        error: errorMessage,
+      });
       return Result.fail("Failed to get note", { code: "INTERNAL_ERROR" });
     }
   }
@@ -296,7 +360,16 @@ export class NoteService {
 
       return Result.ok((note as ConversationNoteResponse) || null);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);
+      await AuditLogService.logFailure({
+        entityType: "conversation_note",
+        entityId: null,
+        companyId,
+        userId,
+        action: "READ",
+        error: errorMessage,
+      });
       return Result.fail("Failed to get user note", { code: "INTERNAL_ERROR" });
     }
   }

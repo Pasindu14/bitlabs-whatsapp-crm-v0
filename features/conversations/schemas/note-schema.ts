@@ -7,7 +7,8 @@ export const conversationNoteCreateClientSchema = z.object({
   conversationId: z.number().int().positive(),
   content: z.string()
     .min(NOTE_CONTENT_MIN_LENGTH, 'Note content is required')
-    .max(NOTE_CONTENT_MAX_LENGTH, 'Note is too long (max 10,000 characters)'),
+    .max(NOTE_CONTENT_MAX_LENGTH, 'Note is too long (max 10,000 characters)')
+    .trim(),
   isPinned: z.boolean().default(false),
 });
 
@@ -24,7 +25,8 @@ export const conversationNoteUpdateClientSchema = z.object({
   noteId: z.number().int().positive(),
   content: z.string()
     .min(NOTE_CONTENT_MIN_LENGTH, 'Note content is required')
-    .max(NOTE_CONTENT_MAX_LENGTH, 'Note is too long (max 10,000 characters)'),
+    .max(NOTE_CONTENT_MAX_LENGTH, 'Note is too long (max 10,000 characters)')
+    .trim(),
   isPinned: z.boolean().optional(),
 });
 
