@@ -374,3 +374,54 @@ export const conversationNoteRelations = relations(conversationNotesTable, ({ on
   }),
 }));
 
+export const whatsappWebhookConfigsTable = pgTable("whatsapp_webhook_configs", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companiesTable.id).notNull(),
+  whatsappAccountId: integer("whatsapp_account_id").references(() => whatsappAccountsTable.id).notNull(),
+  verifyToken: text("verify_token").notNull(),
+  appSecret: text("app_secret").notNull(),
+  callbackPath: text("callback_path").notNull(),
+  status: text("status").notNull().default("unverified"),
+  lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  createdBy: integer("created_by").references((): any => usersTable.id),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  updatedBy: integer("updated_by").references((): any => usersTable.id),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
+}, (table) => [
+  uniqueIndex("whatsapp_webhook_configs_company_account_unique")
+    .on(table.companyId.asc(), table.whatsappAccountId.asc()),
+  index("whatsapp_webhook_configs_company_status_idx")
+    .on(table.companyId.asc(), table.status.asc()),
+]);
+
+export const whatsappWebhookEventLogsTable = pgTable("whatsapp_webhook_event_logs", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companiesTable.id).notNull(),
+  whatsappAccountId: integer("whatsapp_account_id").references(() => whatsappAccountsTable.id).notNull(),
+  objectId: text("object_id"),
+  eventType: text("event_type").notNull(),
+  eventTs: timestamp("event_ts", { withTimezone: true }).notNull(),
+  payload: jsonb("payload").notNull(),
+  signature: text("signature"),
+  dedupKey: text("dedup_key").notNull(),
+  processed: boolean("processed").notNull().default(false),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  createdBy: integer("created_by").references((): any => usersTable.id),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  updatedBy: integer("updated_by").references((): any => usersTable.id),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
+}, (table) => [
+  uniqueIndex("whatsapp_webhook_event_logs_company_dedup_unique")
+    .on(table.companyId.asc(), table.dedupKey.asc()),
+  index("whatsapp_webhook_event_logs_company_account_processed_ts_idx")
+    .on(table.companyId.asc(), table.whatsappAccountId.asc(), table.processed.asc(), table.eventTs.desc()),
+  index("whatsapp_webhook_event_logs_payload_gin_idx")
+    .using("gin", table.payload),
+]);
+

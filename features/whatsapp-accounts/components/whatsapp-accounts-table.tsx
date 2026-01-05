@@ -8,9 +8,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Plus, RefreshCw } from "lucide-react";
+import { Loader2, Plus, RefreshCw, Settings } from "lucide-react";
 import { format } from "date-fns";
 import * as React from "react";
+import Link from "next/link";
 import type {
   ColumnFiltersState,
   RowSelectionState,
@@ -217,6 +218,16 @@ export function WhatsappAccountsTable() {
         header: "Actions",
         cell: ({ row }) => (
           <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+            >
+              <Link href={`/whatsapp-accounts/${row.original.id}`}>
+                <Settings className="mr-2 h-4 w-4" />
+                Configure
+              </Link>
+            </Button>
             <Button
               variant="outline"
               size="sm"
