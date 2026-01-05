@@ -1,37 +1,135 @@
 import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/db/drizzle";
+import { whatsappWebhookConfigsTable, whatsappAccountsTable } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
+import { WebhookIngestService } from "@/features/whatsapp-webhook/services/webhook-ingest.service";
+import { parseISO } from "date-fns";
 
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN; // same name as your Express example
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 
-export async function GET(req: NextRequest) {
-  const sp = req.nextUrl.searchParams;
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const mode = searchParams.get("hub.mode");
+    const token = searchParams.get("hub.verify_token");
+    const challenge = searchParams.get("hub.challenge");
 
-  const mode = sp.get("hub.mode");
-  const token = sp.get("hub.verify_token");
-  const challenge = sp.get("hub.challenge");
+    if (mode === "subscribe" && VERIFY_TOKEN && token === VERIFY_TOKEN) {
+      console.log("WEBHOOK VERIFIED");
+      return new NextResponse(challenge ?? "", {
+        status: 200,
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
 
-  if (mode === "subscribe" && VERIFY_TOKEN && token === VERIFY_TOKEN) {
-    console.log("WEBHOOK VERIFIED");
-    return new NextResponse(challenge ?? "", {
-      status: 200,
-      headers: { "Content-Type": "text/plain" },
-    });
+    return NextResponse.json({ error: "Invalid request" }, { status: 403 });
+  } catch (error) {
+    console.error("Webhook GET error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-
-  return new NextResponse("", { status: 403 });
 }
 
-export async function POST(req: NextRequest) {
-  const timestamp = new Date().toISOString().replace("T", " ").slice(0, 19);
-
-  let payload: unknown = null;
+export async function POST(request: NextRequest) {
   try {
-    payload = await req.json();
-  } catch {
-    return new NextResponse("", { status: 400 });
+    const signature = request.headers.get("x-hub-signature-256");
+    const rawBody = await request.text();
+
+    console.log("WEBHOOK RECEIVED", rawBody);
+
+    if (!rawBody) {
+      return NextResponse.json({ error: "Empty body" }, { status: 400 });
+    }
+
+    let payload;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+
+    if (!payload.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id) {
+      return NextResponse.json({ error: "Missing phone_number_id in payload" }, { status: 400 });
+    }
+
+    const phoneNumberId = payload.entry[0].changes[0].value.metadata.phone_number_id;
+
+    const [account] = await db
+      .select({
+        id: whatsappAccountsTable.id,
+        companyId: whatsappAccountsTable.companyId,
+        isActive: whatsappAccountsTable.isActive,
+      })
+      .from(whatsappAccountsTable)
+      .where(eq(whatsappAccountsTable.phoneNumberId, phoneNumberId))
+      .limit(1);
+
+    if (!account) {
+      return NextResponse.json({ error: "WhatsApp account not found" }, { status: 404 });
+    }
+
+    if (!account.isActive) {
+      return NextResponse.json({ error: "WhatsApp account is inactive" }, { status: 403 });
+    }
+
+    const [config] = await db
+      .select({
+        id: whatsappWebhookConfigsTable.id,
+        companyId: whatsappWebhookConfigsTable.companyId,
+        whatsappAccountId: whatsappWebhookConfigsTable.whatsappAccountId,
+        appSecret: whatsappWebhookConfigsTable.appSecret,
+        status: whatsappWebhookConfigsTable.status,
+      })
+      .from(whatsappWebhookConfigsTable)
+      .where(
+        and(
+          eq(whatsappWebhookConfigsTable.companyId, account.companyId),
+          eq(whatsappWebhookConfigsTable.whatsappAccountId, account.id)
+        )
+      )
+      .limit(1);
+
+    if (!config) {
+      return NextResponse.json({ error: "Webhook config not found" }, { status: 404 });
+    }
+
+    if (config.status !== "verified") {
+      return NextResponse.json({ error: "Webhook not verified" }, { status: 403 });
+    }
+
+    const isValidSignature = WebhookIngestService.verifySignature(
+      signature,
+      rawBody,
+      config.appSecret
+    );
+
+    if (!isValidSignature) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 403 });
+    }
+
+    const eventTs = parseISO(payload.entry[0].changes[0].value?.messages?.[0]?.timestamp || new Date().toISOString());
+
+    const logResult = await WebhookIngestService.logEvent(
+      config.companyId,
+      config.whatsappAccountId,
+      payload,
+      signature,
+      eventTs
+    );
+
+    if (!logResult.success) {
+      console.error("Failed to log webhook event:", logResult.message);
+      return NextResponse.json({ error: "Failed to process event" }, { status: 500 });
+    }
+
+    if (logResult.data?.logId && logResult.data.logId > 0) {
+      WebhookIngestService.processEvent(logResult.data.logId).catch((error) => {
+        console.error("Failed to process webhook event:", error);
+      });
+    }
+
+    return NextResponse.json({ success: true }, { status: 200 });
+  } catch (error) {
+    console.error("Webhook POST error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-
-  console.log(`\n\nWebhook received ${timestamp}\n`);
-  console.log(JSON.stringify(payload, null, 2));
-
-  return new NextResponse("", { status: 200 });
 }
