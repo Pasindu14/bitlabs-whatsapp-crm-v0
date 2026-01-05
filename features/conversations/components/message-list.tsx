@@ -30,8 +30,8 @@ export function MessageList({ conversationId }: MessageListProps) {
     return (
       <ScrollArea className="h-full">
         <div className="space-y-4 p-4">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-3/4" />
+          {Array.from({ length: 13 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" />
           ))}
         </div>
       </ScrollArea>
