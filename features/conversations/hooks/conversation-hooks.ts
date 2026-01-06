@@ -71,8 +71,9 @@ export function useConversationMessages(conversationId: number) {
     },
     getNextPageParam: (lastPage) => (lastPage?.hasMore ? lastPage.previousCursor : undefined),
     initialPageParam: undefined as string | undefined,
-    staleTime: 10000,
-    refetchOnWindowFocus: false,
+    staleTime: 5000,
+    refetchOnWindowFocus: true,
+    refetchInterval: 5000,
   });
 }
 

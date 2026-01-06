@@ -10,7 +10,7 @@ import { ConversationSearch } from '@/features/conversations/components/conversa
 import { MessageInput } from '@/features/conversations/components/message-input';
 import { NewMessageModal } from '@/features/conversations/components/new-message-modal';
 import { useConversationStore } from '@/features/conversations/store/conversation-store';
-import { useSendNewMessage, useConversations, useWhatsAppMessageHistory } from '@/features/conversations/hooks/conversation-hooks';
+import { useSendNewMessage, useConversations, useWhatsAppMessageHistory, useConversation } from '@/features/conversations/hooks/conversation-hooks';
 import { useDefaultWhatsappAccount } from '@/features/whatsapp-accounts/hooks/use-whatsapp-accounts';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,8 @@ export default function ConversationsPage() {
     openNewMessageModal,
   } = useConversationStore();
 
-  const { isPending: isSending } = useSendNewMessage();
+  const { isPending: isSending, mutate: sendNewMessage } = useSendNewMessage();
+  const { data: selectedConversation } = useConversation(selectedConversationId);
 
   const currentUserId = session.data?.user?.id ? parseInt(session.data.user.id, 10) : undefined;
 
@@ -40,13 +41,26 @@ export default function ConversationsPage() {
   const { data: defaultAccount } = useDefaultWhatsappAccount();
 
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async (messageText: string) => {
     if (!selectedConversationId) {
       toast.error('Please select a conversation first');
       return;
     }
 
-    toast.info('Message sending not yet implemented for existing conversations');
+    if (!selectedConversation?.contact?.phone) {
+      toast.error('Could not find contact phone number');
+      return;
+    }
+
+    try {
+      await sendNewMessage({
+        phoneNumber: selectedConversation.contact.phone,
+        messageText,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
+      toast.error(errorMessage);
+    }
   };
 
 
