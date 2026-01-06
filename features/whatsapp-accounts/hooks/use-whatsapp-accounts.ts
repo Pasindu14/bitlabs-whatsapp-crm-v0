@@ -20,6 +20,8 @@ import type { SortingState } from "@tanstack/react-table";
 
 const WHATSAPP_ACCOUNTS_KEY = "whatsapp-accounts";
 
+export { WHATSAPP_ACCOUNTS_KEY };
+
 function buildQueryKey(params: WhatsappAccountListInput & { search?: string }) {
   return [
     WHATSAPP_ACCOUNTS_KEY,

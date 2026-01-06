@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Smartphone } from 'lucide-react';
+import { Check, Smartphone, Eye } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -10,6 +10,8 @@ import {
 } from '@/components/ui/select';
 import { useSelectedWhatsappAccount } from '../hooks/use-selected-whatsapp-account';
 import { Skeleton } from '@/components/ui/skeleton';
+import Link from 'next/link';
+import { Separator } from '@/components/ui/separator';
 
 export function WhatsAppAccountSelector() {
   const { selectedAccount, allAccounts, isLoading, selectAccount } = useSelectedWhatsappAccount();
@@ -68,6 +70,17 @@ export function WhatsAppAccountSelector() {
             </div>
           </SelectItem>
         ))}
+        {selectedAccount && (
+          <>
+            <Separator className="my-2" />
+            <Link href={`/whatsapp-accounts/${selectedAccount.id}/profile`}>
+              <div className="flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground rounded-sm cursor-pointer">
+                <Eye className="h-4 w-4 text-muted-foreground" />
+                <span>View Profile</span>
+              </div>
+            </Link>
+          </>
+        )}
       </SelectContent>
     </Select>
   );
