@@ -1,0 +1,4 @@
+ALTER TABLE "conversations" ADD COLUMN "whatsapp_account_id" integer;--> statement-breakpoint
+ALTER TABLE "messages" ADD COLUMN "whatsapp_account_id" integer;--> statement-breakpoint
+ALTER TABLE "conversations" ADD CONSTRAINT "conversations_whatsapp_account_id_whatsapp_accounts_id_fk" FOREIGN KEY ("whatsapp_account_id") REFERENCES "public"."whatsapp_accounts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "messages" ADD CONSTRAINT "messages_whatsapp_account_id_whatsapp_accounts_id_fk" FOREIGN KEY ("whatsapp_account_id") REFERENCES "public"."whatsapp_accounts"("id") ON DELETE no action ON UPDATE no action;

@@ -360,12 +360,13 @@ export class WebhookIngestService {
       .values({
         companyId,
         contactId: contactRecord.id,
+        whatsappAccountId,
         lastMessagePreview: message.text?.body || "[Media]",
         lastMessageTime: ts,
         isActive: true,
       })
       .onConflictDoUpdate({
-        target: [conversationsTable.companyId, conversationsTable.contactId],
+        target: [conversationsTable.companyId, conversationsTable.contactId, conversationsTable.whatsappAccountId],
         set: {
           lastMessagePreview: message.text?.body || "[Media]",
           lastMessageTime: ts,
@@ -392,6 +393,7 @@ export class WebhookIngestService {
       conversationId: conversationRecord.id,
       companyId,
       contactId: contactRecord.id,
+      whatsappAccountId,
       direction: "inbound",
       status: "delivered",
       content: message.text?.body || "[Media]",

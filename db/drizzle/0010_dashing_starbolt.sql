@@ -1,0 +1,2 @@
+DROP INDEX "conversations_company_contact_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX "conversations_company_contact_whatsapp_account_unique" ON "conversations" USING btree ("company_id","contact_id","whatsapp_account_id");

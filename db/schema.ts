@@ -197,6 +197,7 @@ export const conversationsTable = pgTable("conversations", {
     id: serial("id").primaryKey(),
     companyId: integer("company_id").references(() => companiesTable.id).notNull(),
     contactId: integer("contact_id").references(() => contactsTable.id).notNull(),
+    whatsappAccountId: integer("whatsapp_account_id").references(() => whatsappAccountsTable.id),
     lastMessageId: integer("last_message_id"),
     lastMessagePreview: text("last_message_preview"),
     lastMessageTime: timestamp("last_message_time", { withTimezone: true }),
@@ -212,9 +213,9 @@ export const conversationsTable = pgTable("conversations", {
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }),
 }, (table) => [
-    // Unique constraint: one conversation per company + contact
-    uniqueIndex("conversations_company_contact_unique")
-        .on(table.companyId.asc(), table.contactId.asc()),
+    // Unique constraint: one conversation per company + contact + whatsapp account
+    uniqueIndex("conversations_company_contact_whatsapp_account_unique")
+        .on(table.companyId.asc(), table.contactId.asc(), table.whatsappAccountId.asc()),
 
     // List active conversations
     index("conversations_company_is_active_is_archived_idx")
@@ -247,6 +248,7 @@ export const messagesTable = pgTable("messages", {
     conversationId: integer("conversation_id").references(() => conversationsTable.id).notNull(),
     companyId: integer("company_id").references(() => companiesTable.id).notNull(),
     contactId: integer("contact_id").references(() => contactsTable.id).notNull(),
+    whatsappAccountId: integer("whatsapp_account_id").references(() => whatsappAccountsTable.id),
     direction: text("direction").notNull(),
     status: text("status").notNull().default("sending"),
     content: text("content").notNull(),
