@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 import { useWebhookConfig, useUpsertWebhookConfig } from "../hooks/use-webhook-config";
 import { webhookConfigUpsertClientSchema } from "../schemas/whatsapp-webhook-schema";
 import {  ShieldCheck } from "lucide-react";
@@ -54,7 +55,11 @@ export function WebhookConfigForm({ whatsappAccountId, isDev = false }: WebhookC
   };
 
   if (isLoading) {
-    return <div className="p-8 text-center text-muted-foreground">Loading webhook configuration...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Spinner className="h-8 w-8" />
+      </div>
+    );
   }
 
   if (error && !config) {

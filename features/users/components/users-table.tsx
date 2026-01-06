@@ -370,7 +370,7 @@ export function UsersTable() {
 
       <div className="relative">
         {isLoading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60">
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 border">
             <Spinner className="h-5 w-5" />
           </div>
         )}

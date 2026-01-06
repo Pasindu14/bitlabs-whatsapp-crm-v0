@@ -51,9 +51,9 @@ export function useConversations(filter: ConversationListFilter) {
       if (!result.ok) throw new Error(result.error || 'Failed to load conversations');
       return result.data;
     },
-    staleTime: 30000,
-    refetchOnWindowFocus: false,
-    gcTime: 5 * 60 * 1000,
+    staleTime: 5000,
+    refetchOnWindowFocus: true,
+    refetchInterval: 10000,
   });
 }
 

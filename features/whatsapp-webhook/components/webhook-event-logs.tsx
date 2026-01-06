@@ -5,34 +5,63 @@ import { format } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { DataTable } from "@/components/datatable/data-table";
+import { DataTableToolbar } from "@/components/datatable/data-table-toolbar";
+import { DataTableColumnHeader } from "@/components/datatable/data-table-column-header";
 import { useWebhookEventLogs } from "../hooks/use-webhook-config";
-import { ChevronDown, ChevronRight, CheckCircle2, XCircle, Clock, Eye } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, Eye, RefreshCw } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { createColumnHelper, getCoreRowModel, useReactTable } from "@tanstack/react-table";
+import type { ColumnFiltersState, SortingState } from "@tanstack/react-table";
+import { getSortedRowModel, getFilteredRowModel } from "@tanstack/react-table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface WebhookEventLogsProps {
   whatsappAccountId: number;
 }
 
+type WebhookEventLog = {
+  id: number;
+  eventType: string;
+  eventTs: Date;
+  objectId: string | null;
+  processed: boolean;
+  processedAt: Date | null;
+  dedupKey: string;
+  signature: string | null;
+  payload: unknown;
+  createdAt: Date;
+};
+
+const DEFAULT_PAGE_SIZE = 20;
+const columnHelper = createColumnHelper<WebhookEventLog>();
+
 export function WebhookEventLogs({ whatsappAccountId }: WebhookEventLogsProps) {
   const [processedFilter, setProcessedFilter] = useState<boolean | undefined>(undefined);
-  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "eventTs", desc: true },
+  ]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
-  const { data, isLoading, error, hasNextPage, fetchNextPage, isFetchingNextPage } = useWebhookEventLogs(
+  const { data, isLoading, error, hasNextPage, fetchNextPage, isFetchingNextPage, refetch } = useWebhookEventLogs(
     whatsappAccountId,
-    { limit: 20, processed: processedFilter }
+    { limit: pageSize, processed: processedFilter }
   );
 
-  const items = data?.pages.flatMap((page) => page.items) || [];
-
-  const toggleRow = (id: number) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
-    }
-    setExpandedRows(newExpanded);
-  };
+  const pages = data?.pages ?? [];
+  const hasMore = pages.length > 0 ? pages[pages.length - 1]?.hasMore ?? false : false;
+  const currentPageData = pages[pageIndex]?.items ?? [];
+  const totalCount = pages.reduce((acc, page) => acc + page.items.length, 0);
+  const pageCount = pages.length + (hasMore ? 1 : 0) || 1;
 
   const getEventTypeBadge = (eventType: string) => {
     const config = {
@@ -64,8 +93,116 @@ export function WebhookEventLogs({ whatsappAccountId }: WebhookEventLogsProps) {
     );
   };
 
+  const columns = [
+    columnHelper.accessor("eventType", {
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Event Type" />
+      ),
+      cell: (info) => getEventTypeBadge(info.getValue()),
+      meta: {
+        label: "Event Type",
+        variant: "select",
+        options: [
+          { label: "Message", value: "message" },
+          { label: "Status", value: "status" },
+          { label: "Other", value: "other" },
+        ],
+      },
+    }),
+    columnHelper.accessor("eventTs", {
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Event Time" />
+      ),
+      cell: (info) => format(info.getValue(), "MMM dd, yyyy HH:mm:ss"),
+      meta: {
+        label: "Event Time",
+        variant: "date",
+      },
+    }),
+    columnHelper.accessor("objectId", {
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Object ID" />
+      ),
+      cell: (info) => info.getValue() || "-",
+      meta: {
+        label: "Object ID",
+        variant: "text",
+      },
+    }),
+    columnHelper.accessor("processed", {
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} label="Status" />
+      ),
+      cell: (info) => getProcessedBadge(info.getValue()),
+      filterFn: (row, columnId, filterValue) => {
+        if (!Array.isArray(filterValue) || filterValue.length === 0) return true;
+        const value = row.getValue(columnId);
+        const target = filterValue[0];
+        if (target === "true") return value === true;
+        if (target === "false") return value === false;
+        return true;
+      },
+      meta: {
+        label: "Status",
+        variant: "select",
+        options: [
+          { label: "Processed", value: "true" },
+          { label: "Pending", value: "false" },
+        ],
+      },
+    }),
+    columnHelper.accessor("payload", {
+      header: "Actions",
+      cell: (info) => {
+        const item = info.row.original;
+        return (
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Eye className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Event Payload</DialogTitle>
+                <DialogDescription>
+                  Raw webhook payload from Meta
+                </DialogDescription>
+              </DialogHeader>
+              <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-xs">
+                {JSON.stringify(item.payload, null, 2)}
+              </pre>
+            </DialogContent>
+          </Dialog>
+        );
+      },
+      enableSorting: false,
+      enableHiding: false,
+    }),
+  ];
+
+  const table = useReactTable({
+    data: currentPageData,
+    columns,
+    state: {
+      sorting,
+      columnFilters,
+    },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+  });
+
   if (isLoading) {
-    return <div className="p-8 text-center text-muted-foreground">Loading event logs...</div>;
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center min-h-[60vh]">
+          <Spinner className="h-8 w-8" />
+        </CardContent>
+      </Card>
+    );
   }
 
   if (error) {
@@ -86,132 +223,66 @@ export function WebhookEventLogs({ whatsappAccountId }: WebhookEventLogsProps) {
             <CardTitle>Webhook Event Logs</CardTitle>
             <CardDescription>History of incoming webhook events from Meta</CardDescription>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant={processedFilter === undefined ? "default" : "outline"}
-              size="sm"
-              onClick={() => setProcessedFilter(undefined)}
-            >
-              All
-            </Button>
-            <Button
-              variant={processedFilter === true ? "default" : "outline"}
-              size="sm"
-              onClick={() => setProcessedFilter(true)}
-            >
-              Processed
-            </Button>
-            <Button
-              variant={processedFilter === false ? "default" : "outline"}
-              size="sm"
-              onClick={() => setProcessedFilter(false)}
-            >
-              Pending
-            </Button>
-          </div>
         </div>
       </CardHeader>
       <CardContent>
-        {items.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground">
-            No webhook events found
+        <DataTableToolbar table={table} />
+        <div className="relative">
+          {isFetchingNextPage && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60">
+              <Spinner className="h-5 w-5" />
+            </div>
+          )}
+          <div className={isFetchingNextPage ? "opacity-0" : ""} aria-hidden={isFetchingNextPage}>
+            <DataTable table={table} showPagination={false} />
           </div>
-        ) : (
-          <div className="space-y-2">
-            {items.map((item) => (
-              <div
-                key={item.id}
-                className="border rounded-lg overflow-hidden"
-              >
-                <div
-                  className="flex items-center gap-4 p-4 hover:bg-muted/50 cursor-pointer transition-colors"
-                  onClick={() => toggleRow(item.id)}
-                >
-                  <Button variant="ghost" size="icon" className="h-6 w-6">
-                    {expandedRows.has(item.id) ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
-                  </Button>
-                  <div className="flex-1 grid grid-cols-6 gap-4 items-center">
-                    <div className="col-span-1">
-                      {getEventTypeBadge(item.eventType)}
-                    </div>
-                    <div className="col-span-2 text-sm">
-                      {format(new Date(item.eventTs), "MMM dd, yyyy HH:mm:ss")}
-                    </div>
-                    <div className="col-span-1 text-sm font-mono text-muted-foreground truncate">
-                      {item.objectId || "-"}
-                    </div>
-                    <div className="col-span-1">
-                      {getProcessedBadge(item.processed)}
-                    </div>
-                    <div className="col-span-1 flex justify-end">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                          <DialogHeader>
-                            <DialogTitle>Event Payload</DialogTitle>
-                            <DialogDescription>
-                              Raw webhook payload from Meta
-                            </DialogDescription>
-                          </DialogHeader>
-                          <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-xs">
-                            {JSON.stringify(item.payload, null, 2)}
-                          </pre>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
-                  </div>
-                </div>
-                {expandedRows.has(item.id) && (
-                  <div className="border-t p-4 bg-muted/30 space-y-2">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="font-medium">Event ID:</span> {item.id}
-                      </div>
-                      <div>
-                        <span className="font-medium">Dedup Key:</span> {item.dedupKey}
-                      </div>
-                      <div>
-                        <span className="font-medium">Object ID:</span> {item.objectId || "-"}
-                      </div>
-                      <div>
-                        <span className="font-medium">Signature:</span> {item.signature ? "Present" : "Missing"}
-                      </div>
-                      <div>
-                        <span className="font-medium">Processed:</span>{" "}
-                        {item.processed
-                          ? `Yes (${item.processedAt ? format(new Date(item.processedAt), "HH:mm:ss") : "-"})`
-                          : "No"}
-                      </div>
-                      <div>
-                        <span className="font-medium">Created:</span>{" "}
-                        {format(new Date(item.createdAt), "MMM dd, yyyy HH:mm:ss")}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-            {hasNextPage && (
-              <div className="flex justify-center pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => fetchNextPage()}
-                  disabled={isFetchingNextPage}
-                >
-                  {isFetchingNextPage ? "Loading..." : "Load More"}
-                </Button>
-              </div>
-            )}
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4">
+          <p className="text-sm text-muted-foreground">
+            Displaying {currentPageData.length} of {totalCount} events
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={pageIndex === 0}
+              onClick={() => setPageIndex((prev) => Math.max(prev - 1, 0))}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!hasMore && pageIndex >= pageCount - 1}
+              onClick={async () => {
+                const nextIndex = pageIndex + 1;
+                if (nextIndex > pages.length - 1 && hasMore) {
+                  await fetchNextPage();
+                }
+                setPageIndex(nextIndex);
+              }}
+            >
+              Next
+            </Button>
+            <Select
+              value={`${pageSize}`}
+              onValueChange={(value: string) => {
+                const size = Number(value);
+                setPageSize(size);
+                setPageIndex(0);
+              }}
+            >
+              <SelectTrigger className="h-8 w-20">
+                <SelectValue>{pageSize}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {[10, 20, 30, 40, 50].map((size) => (
+                  <SelectItem key={size} value={`${size}`}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        )}
+        </div>
       </CardContent>
     </Card>
   );

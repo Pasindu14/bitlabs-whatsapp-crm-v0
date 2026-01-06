@@ -218,16 +218,7 @@ export function WhatsappAccountsTable() {
         header: "Actions",
         cell: ({ row }) => (
           <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              asChild
-            >
-              <Link href={`/whatsapp-accounts/${row.original.id}`}>
-                <Settings className="mr-2 h-4 w-4" />
-                Configure
-              </Link>
-            </Button>
+
             <Button
               variant="outline"
               size="sm"
@@ -240,25 +231,17 @@ export function WhatsappAccountsTable() {
             >
               Edit
             </Button>
-            <Button
-              variant="ghost"
+                        <Button
+              variant="outline"
               size="sm"
-              onClick={() => setDefaultMutation.mutate(row.original.id)}
-              disabled={row.original.isDefault}
+              asChild
             >
-              Default
+              <Link href={`/whatsapp-accounts/${row.original.id}`}>
+                <Settings className="mr-2 h-4 w-4" />
+                Configure Webhook
+              </Link>
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() =>
-                row.original.isActive
-                  ? deactivateMutation.mutate(row.original.id)
-                  : activateMutation.mutate(row.original.id)
-              }
-            >
-              {row.original.isActive ? "Deactivate" : "Activate"}
-            </Button>
+            
           </div>
         ),
         enableSorting: false,
@@ -355,7 +338,7 @@ export function WhatsappAccountsTable() {
       <DataTableToolbar table={table} />
       <div className="relative">
         {isLoading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60">
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 border">
             <Spinner className="h-5 w-5" />
           </div>
         )}
