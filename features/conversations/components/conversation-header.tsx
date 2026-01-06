@@ -58,7 +58,7 @@ export function ConversationHeader({ conversationId }: ConversationHeaderProps) 
 
   return (
     <>
-      <div className="border-b p-4 flex items-center justify-between">
+      <div className="p-1 flex items-center justify-between w-full">
         <h2 className="text-lg font-semibold">{displayName}</h2>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

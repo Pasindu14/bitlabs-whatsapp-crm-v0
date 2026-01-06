@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { Plus } from 'lucide-react';
+import { Plus, ArrowLeft } from 'lucide-react';
 import { ConversationList } from '@/features/conversations/components/conversation-list';
 import { MessageList } from '@/features/conversations/components/message-list';
 import { ConversationHeader } from '@/features/conversations/components/conversation-header';
@@ -23,6 +23,7 @@ export default function ConversationsPage() {
     searchTerm,
     showArchivedSection,
     openNewMessageModal,
+    setSelectedConversation,
   } = useConversationStore();
 
   const { isPending: isSending, mutate: sendNewMessage } = useSendNewMessage();
@@ -63,11 +64,17 @@ export default function ConversationsPage() {
     }
   };
 
+  const handleBackToList = () => {
+    setSelectedConversation(null);
+  };
+
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const showChatView = selectedConversationId && isMobile;
 
   return (
-    <div className="flex h-screen gap-4 bg-background">
-      {/* Sidebar */}
-      <div className="w-80 border-r flex flex-col">
+    <div className="flex h-[100dvh] md:h-[calc(100dvh-50px)] gap-4 bg-background">
+      {/* Sidebar - Hidden on mobile when chat is selected */}
+      <div className={`${showChatView ? 'hidden md:flex' : 'flex'} w-80 border-r flex flex-col md:flex`}>
         {/* Header */}
         <div className="border-b p-4 flex items-center justify-between gap-3">
           <div>
@@ -102,18 +109,32 @@ export default function ConversationsPage() {
         </div>
       </div>
 
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      {/* Main Chat Area - Full width on mobile when selected */}
+      <div className={`${showChatView ? 'flex' : 'hidden md:flex'} flex-1 flex flex-col`}>
         {selectedConversationId ? (
           <>
             {/* Chat Header */}
-            <ConversationHeader conversationId={selectedConversationId} />
+            <div className="p-4 flex items-center gap-3 border-b md:hidden">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8"
+                onClick={handleBackToList}
+                aria-label="Back to conversations"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <ConversationHeader conversationId={selectedConversationId} />
+            </div>
+            <div className="hidden md:block md:border-b md:p-4">
+              <ConversationHeader conversationId={selectedConversationId} />
+            </div>
 
             {/* Messages */}
             <div className="flex-1 overflow-hidden">
               <MessageList
                 conversationId={selectedConversationId}
-          
+
               />
             </div>
 
