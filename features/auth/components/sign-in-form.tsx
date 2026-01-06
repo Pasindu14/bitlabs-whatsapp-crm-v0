@@ -39,7 +39,7 @@ export default function SignInForm() {
       onSuccess: () => {
         toast.success("Signed in successfully");
         // Redirect to dashboard after successful login
-        router.push("/dashboard");
+        router.push("/users");
       },
       onError: (error: Error) => {
         toast.error(error.message || "Something went wrong");
@@ -60,7 +60,7 @@ export default function SignInForm() {
           render={({ field }) => (
             <FormItem>
               <FormControl>
-                <Input placeholder="EMP01" {...field} disabled={isPending} />
+                <Input placeholder="" {...field} disabled={isPending} />
               </FormControl>
               <FormMessage />
             </FormItem>

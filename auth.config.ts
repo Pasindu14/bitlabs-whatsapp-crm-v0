@@ -14,11 +14,11 @@ export default {
 
             // Redirect logged-in users away from login page
             if (path === "/login" && isLoggedIn) {
-                return Response.redirect(new URL("/dashboard", nextUrl))
+                return Response.redirect(new URL("/users", nextUrl))
             }
 
             // Protect dashboard routes
-            if (path.startsWith("/dashboard")) {
+            if (path.startsWith("/users")) {
                 if (!isLoggedIn) {
                     return Response.redirect(new URL("/sign-in", nextUrl))
                 }
