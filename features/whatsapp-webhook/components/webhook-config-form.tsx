@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useWebhookConfig, useUpsertWebhookConfig, useRotateVerifyToken, useSetWebhookStatus } from "../hooks/use-webhook-config";
+import { useWebhookConfig, useUpsertWebhookConfig, useSetWebhookStatus } from "../hooks/use-webhook-config";
 import { webhookConfigUpsertClientSchema } from "../schemas/whatsapp-webhook-schema";
 import { Copy, RefreshCw, Shield, ShieldCheck, ShieldX, AlertCircle, ExternalLink } from "lucide-react";
 
@@ -24,14 +24,11 @@ interface WebhookConfigFormProps {
 export function WebhookConfigForm({ whatsappAccountId, isDev = false }: WebhookConfigFormProps) {
   const { data: config, isLoading, error } = useWebhookConfig(whatsappAccountId);
   const upsertMutation = useUpsertWebhookConfig();
-  const rotateMutation = useRotateVerifyToken();
   const setStatusMutation = useSetWebhookStatus();
-  const [showNewToken, setShowNewToken] = useState<string | null>(null);
 
   const form = useForm<WebhookConfigFormValues>({
     resolver: zodResolver(webhookConfigUpsertClientSchema),
     defaultValues: {
-      verifyToken: "",
       appSecret: "",
       callbackPath: "/api/webhooks/whatsapp",
       status: "unverified",
@@ -41,7 +38,6 @@ export function WebhookConfigForm({ whatsappAccountId, isDev = false }: WebhookC
   useEffect(() => {
     if (config) {
       form.reset({
-        verifyToken: "",
         appSecret: "",
         callbackPath: config.callbackPath,
         status: config.status,
@@ -51,14 +47,6 @@ export function WebhookConfigForm({ whatsappAccountId, isDev = false }: WebhookC
 
   const onSubmit = async (values: WebhookConfigFormValues) => {
     await upsertMutation.mutateAsync({ ...values, whatsappAccountId });
-  };
-
-  const handleRotateToken = async () => {
-    const result = await rotateMutation.mutateAsync(whatsappAccountId);
-    if (result?.token) {
-      setShowNewToken(result.token);
-      form.setValue("verifyToken", result.token);
-    }
   };
 
   const handleToggleStatus = async () => {
@@ -138,30 +126,6 @@ export function WebhookConfigForm({ whatsappAccountId, isDev = false }: WebhookC
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="verifyToken">Verify Token</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="verifyToken"
-                  {...form.register("verifyToken")}
-                  placeholder="Enter verify token"
-                  type={showNewToken ? "text" : "password"}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={handleRotateToken}
-                  disabled={rotateMutation.isPending}
-                >
-                  <RefreshCw className={`h-4 w-4 ${rotateMutation.isPending ? "animate-spin" : ""}`} />
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Used by Meta to verify your webhook. Generate a new token and save it securely.
-              </p>
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="appSecret">App Secret</Label>
               <Input
                 id="appSecret"
@@ -204,30 +168,6 @@ export function WebhookConfigForm({ whatsappAccountId, isDev = false }: WebhookC
             <strong>Development Mode:</strong> Run{" "}
             <code className="bg-muted px-1 py-0.5 rounded">ngrok http 3000</code>{" "}
             and use the generated URL as your webhook callback in Meta.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {showNewToken && (
-        <Alert>
-          <Copy className="h-4 w-4" />
-          <AlertDescription>
-            <strong>New verify token generated:</strong> Copy this now - it won&apos;t be shown again!
-            <div className="mt-2 p-2 bg-muted rounded font-mono text-sm break-all">
-              {showNewToken}
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-2"
-              onClick={() => {
-                navigator.clipboard.writeText(showNewToken);
-                setShowNewToken(null);
-              }}
-            >
-              Copy & Dismiss
-            </Button>
           </AlertDescription>
         </Alert>
       )}

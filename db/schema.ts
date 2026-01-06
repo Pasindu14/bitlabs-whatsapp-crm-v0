@@ -377,7 +377,6 @@ export const whatsappWebhookConfigsTable = pgTable("whatsapp_webhook_configs", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").references(() => companiesTable.id).notNull(),
   whatsappAccountId: integer("whatsapp_account_id").references(() => whatsappAccountsTable.id).notNull(),
-  verifyToken: text("verify_token").notNull(),
   appSecret: text("app_secret").notNull(),
   callbackPath: text("callback_path").notNull(),
   status: text("status").notNull().default("unverified"),

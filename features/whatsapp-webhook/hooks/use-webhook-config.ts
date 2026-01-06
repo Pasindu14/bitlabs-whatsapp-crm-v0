@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import {
   getWebhookConfigAction,
   upsertWebhookConfigAction,
-  rotateVerifyTokenAction,
   setWebhookStatusAction,
   listWebhookEventLogsAction,
 } from "../actions/webhook-config.actions";
@@ -43,22 +42,6 @@ export function useUpsertWebhookConfig() {
       toast.success("Webhook configuration saved");
       queryClient.invalidateQueries({ queryKey: [WEBHOOK_CONFIG_KEY, variables.whatsappAccountId] });
       queryClient.invalidateQueries({ queryKey: [WEBHOOK_EVENT_LOGS_KEY] });
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-}
-
-export function useRotateVerifyToken() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (whatsappAccountId: number) => {
-      const result = await rotateVerifyTokenAction({ whatsappAccountId });
-      if (!result.ok) throw new Error(result.error);
-      return result.data;
-    },
-    onSuccess: (_, whatsappAccountId) => {
-      toast.success("Verify token rotated. Save it now - it won't be shown again!");
-      queryClient.invalidateQueries({ queryKey: [WEBHOOK_CONFIG_KEY, whatsappAccountId] });
     },
     onError: (error: Error) => toast.error(error.message),
   });

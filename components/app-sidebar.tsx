@@ -36,10 +36,6 @@ const navMainData = [
         title: "WhatsApp Accounts",
         url: "/whatsapp-accounts",
       },
-      {
-        title: "Data Table Demo",
-        url: "/datatable-demo",
-      },
     ],
   },
 ];

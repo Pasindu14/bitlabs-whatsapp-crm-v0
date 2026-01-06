@@ -51,7 +51,6 @@ export const upsertWebhookConfigAction = withAction<
   "webhookConfig.upsert",
   async (auth, input) => {
     const result = await WebhookConfigService.upsert({
-      verifyToken: input.verifyToken,
       appSecret: input.appSecret,
       callbackPath: input.callbackPath,
       status: input.status,
@@ -71,27 +70,6 @@ export const upsertWebhookConfigAction = withAction<
       whatsappAccountId: z.number().int().positive(),
     }),
   }
-);
-
-export const rotateVerifyTokenAction = withAction<
-  AccountIdInput,
-  { token: string }
->(
-  "webhookConfig.rotateToken",
-  async (auth, input) => {
-    const result = await WebhookConfigService.rotateVerifyToken(
-      auth.companyId,
-      auth.userId,
-      input.whatsappAccountId
-    );
-
-    if (!result.success) {
-      return Result.fail(result.message, result.error);
-    }
-
-    return result;
-  },
-  { schema: webhookAccountIdSchema }
 );
 
 export const setWebhookStatusAction = withAction<

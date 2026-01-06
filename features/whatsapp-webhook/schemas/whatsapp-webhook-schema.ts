@@ -7,11 +7,6 @@ export const WEBHOOK_EVENT_TYPES = ["message", "status", "other"] as const;
 export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
 
 export const webhookConfigUpsertClientSchema = z.object({
-  verifyToken: z
-    .string()
-    .min(8, "Verify token must be at least 8 characters")
-    .max(255)
-    .trim(),
   appSecret: z
     .string()
     .min(8, "App secret must be at least 8 characters")

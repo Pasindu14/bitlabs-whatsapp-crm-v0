@@ -72,14 +72,12 @@ export class WebhookConfigService {
     });
 
     try {
-      const hashedVerifyToken = await bcrypt.hash(input.verifyToken, 10);
       const hashedAppSecret = await bcrypt.hash(input.appSecret, 10);
 
       const result = await db.transaction(async (tx) => {
         const [existing] = await tx
           .select({
             id: whatsappWebhookConfigsTable.id,
-            verifyToken: whatsappWebhookConfigsTable.verifyToken,
             appSecret: whatsappWebhookConfigsTable.appSecret,
             callbackPath: whatsappWebhookConfigsTable.callbackPath,
             status: whatsappWebhookConfigsTable.status,
@@ -104,7 +102,6 @@ export class WebhookConfigService {
           ? await tx
               .update(whatsappWebhookConfigsTable)
               .set({
-                verifyToken: hashedVerifyToken,
                 appSecret: hashedAppSecret,
                 callbackPath: input.callbackPath,
                 status: input.status ?? existing.status,
@@ -118,7 +115,6 @@ export class WebhookConfigService {
               .values({
                 companyId: input.companyId,
                 whatsappAccountId: input.whatsappAccountId,
-                verifyToken: hashedVerifyToken,
                 appSecret: hashedAppSecret,
                 callbackPath: input.callbackPath,
                 status: input.status ?? "unverified",
@@ -176,101 +172,6 @@ export class WebhookConfigService {
         error: errorMessage,
       });
       return Result.internal("Failed to upsert webhook config");
-    }
-  }
-
-  static async rotateVerifyToken(
-    companyId: number,
-    userId: number,
-    whatsappAccountId: number
-  ): Promise<Result<{ token: string }>> {
-    const perf = createPerformanceLogger("WebhookConfigService.rotateVerifyToken", {
-      context: { companyId, userId, whatsappAccountId },
-    });
-
-    try {
-      const newToken = randomBytes(32).toString("hex");
-      const hashedToken = await bcrypt.hash(newToken, 10);
-
-      const result = await db.transaction(async (tx) => {
-        const [existing] = await tx
-          .select({
-            id: whatsappWebhookConfigsTable.id,
-            verifyToken: whatsappWebhookConfigsTable.verifyToken,
-            status: whatsappWebhookConfigsTable.status,
-          })
-          .from(whatsappWebhookConfigsTable)
-          .where(
-            and(
-              eq(whatsappWebhookConfigsTable.companyId, companyId),
-              eq(whatsappWebhookConfigsTable.whatsappAccountId, whatsappAccountId)
-            )
-          )
-          .limit(1);
-
-        if (!existing) {
-          return null;
-        }
-
-        const oldValues = { verifyToken: "***" };
-
-        const [updated] = await tx
-          .update(whatsappWebhookConfigsTable)
-          .set({
-            verifyToken: hashedToken,
-            status: "unverified",
-            updatedBy: userId,
-            updatedAt: sql`now()`,
-          })
-          .where(eq(whatsappWebhookConfigsTable.id, existing.id))
-          .returning(BASE_SELECTION);
-
-        const newValues = { verifyToken: "***", status: updated.status };
-
-        await tx.insert(auditLogsTable).values({
-          entityType: "webhook_config",
-          entityId: updated.id,
-          companyId,
-          action: "ROTATE_TOKEN_ATTEMPT",
-          oldValues,
-          newValues,
-          changedBy: userId,
-          changeReason: "Webhook verify token rotated",
-        });
-
-        return { updated, oldValues, newValues };
-      });
-
-      if (!result) {
-        perf.fail("Webhook config not found");
-        return Result.notFound("Webhook config not found");
-      }
-
-      await db.insert(auditLogsTable).values({
-        entityType: "webhook_config",
-        entityId: result.updated.id,
-        companyId,
-        action: "ROTATE_TOKEN_SUCCESS",
-        oldValues: result.oldValues,
-        newValues: result.newValues,
-        changedBy: userId,
-        changeReason: "Webhook verify token rotated successfully",
-      });
-
-      perf.complete(1);
-      return Result.ok({ token: newToken });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to rotate verify token";
-      perf.fail(errorMessage);
-      await AuditLogService.logFailure({
-        entityType: "webhook_config",
-        entityId: null,
-        companyId,
-        userId,
-        action: "ROTATE_TOKEN",
-        error: errorMessage,
-      });
-      return Result.internal("Failed to rotate verify token");
     }
   }
 
@@ -372,7 +273,7 @@ export class WebhookConfigService {
   static async getSecrets(
     companyId: number,
     whatsappAccountId: number
-  ): Promise<Result<{ verifyToken: string; appSecret: string } | null>> {
+  ): Promise<Result<{ appSecret: string } | null>> {
     const perf = createPerformanceLogger("WebhookConfigService.getSecrets", {
       context: { companyId, whatsappAccountId },
     });
@@ -380,7 +281,6 @@ export class WebhookConfigService {
     try {
       const [record] = await db
         .select({
-          verifyToken: whatsappWebhookConfigsTable.verifyToken,
           appSecret: whatsappWebhookConfigsTable.appSecret,
         })
         .from(whatsappWebhookConfigsTable)
@@ -399,7 +299,6 @@ export class WebhookConfigService {
 
       perf.complete(1);
       return Result.ok({
-        verifyToken: record.verifyToken,
         appSecret: record.appSecret,
       });
     } catch (error) {

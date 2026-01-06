@@ -1,0 +1,1 @@
+ALTER TABLE "whatsapp_webhook_configs" DROP COLUMN "verify_token";
