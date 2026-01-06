@@ -3,7 +3,7 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Building2, MessageCircle } from "lucide-react";
+import { Building2, MessageCircle, User } from "lucide-react";
 
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
@@ -24,20 +24,15 @@ const navMainData = [
     icon: MessageCircle,
   },
   {
-    title: "Management",
-    url: "#",
-    icon: Building2,
-    items: [
-      {
-        title: "Users",
-        url: "/users",
-      },
-      {
-        title: "WhatsApp Accounts",
-        url: "/whatsapp-accounts",
-      },
-    ],
+    title: "User Management",
+    url: "/users",
+    icon: User,
   },
+  {
+    title: "WhatsApp Account Management",
+    url: "/whatsapp-accounts",
+    icon: Building2,
+  }
 ];
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -46,11 +41,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   // Determine which section should be active based on current route
   const navMain = navMainData.map((item) => {
-    const isActive =
-      item.items?.some(
-        (subItem) =>
-          pathname === subItem.url || pathname?.startsWith(subItem.url + "/")
-      ) ?? false;
+    const isActive = pathname === item.url || pathname?.startsWith(item.url + "/");
     return {
       ...item,
       isActive,

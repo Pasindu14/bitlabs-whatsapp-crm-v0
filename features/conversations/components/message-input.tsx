@@ -31,13 +31,14 @@ export function MessageInput({ onSend, isLoading = false, disabled = false }: Me
 
   return (
     <div className="border-t p-4 space-y-2">
-      <div className="flex gap-2">
+      <div className="flex gap-2 items-center justify-center">
         <Button
           size="icon"
           variant="ghost"
           onClick={openNewMessageModal}
           disabled={disabled || isLoading}
           title="New message"
+          className='border'
         >
           <Plus className="h-5 w-5" />
         </Button>
