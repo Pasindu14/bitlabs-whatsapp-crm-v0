@@ -112,7 +112,6 @@ export const whatsappAccountsTable = pgTable("whatsapp_accounts", {
     phoneNumberId: text("phone_number_id").notNull(),
     businessAccountId: text("business_account_id").notNull(),
     accessToken: text("access_token").notNull(), // Store encrypted in production
-    webhookUrl: text("webhook_url"),
     isActive: boolean("is_active").notNull().default(true),
     isDefault: boolean("is_default").notNull().default(false),
     // Track auditing users - use explicit type cast to avoid circular reference

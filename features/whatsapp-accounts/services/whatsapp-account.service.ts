@@ -23,7 +23,6 @@ const BASE_SELECTION = {
   name: whatsappAccountsTable.name,
   phoneNumberId: whatsappAccountsTable.phoneNumberId,
   businessAccountId: whatsappAccountsTable.businessAccountId,
-  webhookUrl: whatsappAccountsTable.webhookUrl,
   isActive: whatsappAccountsTable.isActive,
   isDefault: whatsappAccountsTable.isDefault,
   createdAt: whatsappAccountsTable.createdAt,
@@ -183,7 +182,6 @@ export class WhatsappAccountService {
             phoneNumberId: input.phoneNumberId,
             businessAccountId: input.businessAccountId,
             accessToken: input.accessToken,
-            webhookUrl: input.webhookUrl,
             isDefault: input.isDefault ?? false,
             createdBy: input.userId,
             updatedBy: input.userId,
@@ -260,7 +258,6 @@ export class WhatsappAccountService {
             phoneNumberId: whatsappAccountsTable.phoneNumberId,
             businessAccountId: whatsappAccountsTable.businessAccountId,
             accessToken: whatsappAccountsTable.accessToken,
-            webhookUrl: whatsappAccountsTable.webhookUrl,
             isDefault: whatsappAccountsTable.isDefault,
             isActive: whatsappAccountsTable.isActive,
           })
@@ -281,7 +278,6 @@ export class WhatsappAccountService {
           name: existing.name,
           phoneNumberId: existing.phoneNumberId,
           businessAccountId: existing.businessAccountId,
-          webhookUrl: existing.webhookUrl,
           isDefault: existing.isDefault,
           isActive: existing.isActive,
         };
@@ -301,7 +297,6 @@ export class WhatsappAccountService {
             businessAccountId:
               input.businessAccountId ?? existing.businessAccountId,
             accessToken: input.accessToken ?? existing.accessToken,
-            webhookUrl: input.webhookUrl ?? existing.webhookUrl,
             isDefault: input.isDefault ?? existing.isDefault,
             isActive: input.isActive ?? existing.isActive,
             updatedBy: input.userId,
@@ -314,7 +309,6 @@ export class WhatsappAccountService {
         if (input.name !== undefined) newValues.name = input.name;
         if (input.phoneNumberId !== undefined) newValues.phoneNumberId = input.phoneNumberId;
         if (input.businessAccountId !== undefined) newValues.businessAccountId = input.businessAccountId;
-        if (input.webhookUrl !== undefined) newValues.webhookUrl = input.webhookUrl;
         if (input.isDefault !== undefined) newValues.isDefault = input.isDefault;
         if (input.isActive !== undefined) newValues.isActive = input.isActive;
 

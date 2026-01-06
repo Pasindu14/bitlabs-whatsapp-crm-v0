@@ -10,7 +10,6 @@ export const whatsappAccountCreateClientSchema = z.object({
   phoneNumberId: z.string().min(1).max(255).trim(),
   businessAccountId: z.string().min(1).max(255).trim(),
   accessToken: z.string().min(5).max(4096).trim(),
-  webhookUrl: z.string().url().trim().optional(),
   isDefault: z.boolean().optional(),
 });
 export type WhatsappAccountCreateInput = z.infer<
@@ -96,7 +95,6 @@ export const whatsappAccountResponseSchema = z.object({
   phoneNumberId: z.string(),
   businessAccountId: z.string(),
   // accessToken intentionally omitted from responses
-  webhookUrl: z.string().nullable(),
   isActive: z.boolean(),
   isDefault: z.boolean(),
   createdAt: z.date(),

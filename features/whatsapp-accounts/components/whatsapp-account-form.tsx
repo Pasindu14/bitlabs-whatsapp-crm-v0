@@ -51,7 +51,6 @@ export function WhatsappAccountForm({
       phoneNumberId: "",
       businessAccountId: "",
       accessToken: "",
-      webhookUrl: "",
       isDefault: false,
       ...(defaultValues || {}),
     },
@@ -64,7 +63,6 @@ export function WhatsappAccountForm({
         phoneNumberId: "",
         businessAccountId: "",
         accessToken: "",
-        webhookUrl: "",
         isDefault: false,
         ...defaultValues,
       });
@@ -132,20 +130,6 @@ export function WhatsappAccountForm({
               <FormLabel>Access Token</FormLabel>
               <FormControl>
                 <Input type="password" placeholder="••••••••" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="webhookUrl"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Webhook URL (optional)</FormLabel>
-              <FormControl>
-                <Input placeholder="https://example.com/webhook" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

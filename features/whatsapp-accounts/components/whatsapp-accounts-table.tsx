@@ -234,7 +234,6 @@ export function WhatsappAccountsTable() {
               onClick={() => {
                 setEditing({
                   ...row.original,
-                  webhookUrl: row.original.webhookUrl ?? null,
                 });
                 setFormOpen(true);
               }}
@@ -333,7 +332,6 @@ export function WhatsappAccountsTable() {
                 editing
                   ? {
                       ...editing,
-                      webhookUrl: editing.webhookUrl ?? undefined,
                     }
                   : undefined
               }
