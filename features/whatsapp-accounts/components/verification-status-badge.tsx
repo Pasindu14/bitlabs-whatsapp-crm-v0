@@ -49,6 +49,18 @@ export function VerificationStatusBadge({ type, status }: VerificationStatusBadg
       label: 'Unverified',
       className: 'bg-red-500/10 text-red-700 border-red-500/20',
     },
+    EXPIRED: {
+      label: 'Expired',
+      className: 'bg-orange-500/10 text-orange-700 border-orange-500/20',
+    },
+    PENDING: {
+      label: 'Pending',
+      className: 'bg-yellow-500/10 text-yellow-700 border-yellow-500/20',
+    },
+    NOT_VERIFIED: {
+      label: 'Not Verified',
+      className: 'bg-gray-500/10 text-gray-700 border-gray-500/20',
+    },
   };
 
   const variants = type === 'name' ? nameStatusVariants : codeStatusVariants;

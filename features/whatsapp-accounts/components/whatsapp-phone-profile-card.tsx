@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Smartphone, Shield, CheckCircle } from 'lucide-react';
+import { RefreshCw, Smartphone, Shield, CheckCircle, Server, Activity, Webhook } from 'lucide-react';
 import { QualityRatingBadge } from './quality-rating-badge';
 import { VerificationStatusBadge } from './verification-status-badge';
 import type { WhatsappPhoneProfileResponse } from '../schemas/whatsapp-phone-profile.schema';
@@ -108,6 +108,36 @@ export function WhatsAppPhoneProfileCard({ profile, isLoading, error, onRefresh 
           </div>
           <QualityRatingBadge rating={profile.quality_rating} />
         </div>
+
+        {profile.platform_type && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Server className="h-4 w-4" />
+              <span>Platform Type</span>
+            </div>
+            <p className="text-lg font-semibold">{profile.platform_type}</p>
+          </div>
+        )}
+
+        {profile.throughput?.level && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Activity className="h-4 w-4" />
+              <span>Throughput Level</span>
+            </div>
+            <p className="text-lg font-semibold">{profile.throughput.level}</p>
+          </div>
+        )}
+
+        {profile.webhook_configuration?.application && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Webhook className="h-4 w-4" />
+              <span>Webhook URL</span>
+            </div>
+            <p className="text-sm font-mono break-all">{profile.webhook_configuration.application}</p>
+          </div>
+        )}
 
         {profile.name_status && (
           <div className="space-y-2">

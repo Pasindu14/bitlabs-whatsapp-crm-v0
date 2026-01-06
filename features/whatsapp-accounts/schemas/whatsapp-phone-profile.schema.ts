@@ -16,7 +16,7 @@ export const nameStatusSchema = z.enum([
   'NONE',
 ]);
 
-export const codeVerificationStatusSchema = z.enum(['VERIFIED', 'UNVERIFIED']);
+export const codeVerificationStatusSchema = z.enum(['VERIFIED', 'UNVERIFIED', 'EXPIRED', 'PENDING', 'NOT_VERIFIED']);
 
 export const whatsappPhoneProfileResponseSchema = z.object({
   id: z.string(),
@@ -25,7 +25,13 @@ export const whatsappPhoneProfileResponseSchema = z.object({
   quality_rating: qualityRatingSchema.optional(),
   name_status: nameStatusSchema.optional(),
   code_verification_status: codeVerificationStatusSchema.optional(),
-  
+  platform_type: z.string().optional(),
+  throughput: z.object({
+    level: z.string().optional(),
+  }).optional(),
+  webhook_configuration: z.object({
+    application: z.string().optional(),
+  }).optional(),
 }).passthrough();
 
 export type WhatsappPhoneProfileResponse = z.infer<typeof whatsappPhoneProfileResponseSchema>;
