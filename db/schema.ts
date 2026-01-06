@@ -379,8 +379,6 @@ export const whatsappWebhookConfigsTable = pgTable("whatsapp_webhook_configs", {
   whatsappAccountId: integer("whatsapp_account_id").references(() => whatsappAccountsTable.id).notNull(),
   appSecret: text("app_secret").notNull(),
   callbackPath: text("callback_path").notNull(),
-  status: text("status").notNull().default("unverified"),
-  lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   createdBy: integer("created_by").references((): any => usersTable.id),
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -391,8 +389,6 @@ export const whatsappWebhookConfigsTable = pgTable("whatsapp_webhook_configs", {
 }, (table) => [
   uniqueIndex("whatsapp_webhook_configs_company_account_unique")
     .on(table.companyId.asc(), table.whatsappAccountId.asc()),
-  index("whatsapp_webhook_configs_company_status_idx")
-    .on(table.companyId.asc(), table.status.asc()),
 ]);
 
 export const whatsappWebhookEventLogsTable = pgTable("whatsapp_webhook_event_logs", {

@@ -35,45 +35,6 @@ const BASE_SELECTION = {
 } satisfies Record<keyof WebhookEventLogRecord, unknown>;
 
 export class WebhookIngestService {
-  static async handleChallenge(
-    companyId: number,
-    whatsappAccountId: number,
-    verifyToken: string
-  ): Promise<Result<{ success: boolean }>> {
-    const perf = createPerformanceLogger("WebhookIngestService.handleChallenge", {
-      context: { companyId, whatsappAccountId },
-    });
-
-    try {
-      const secretsResult = await WebhookConfigService.getSecrets(
-        companyId,
-        whatsappAccountId
-      );
-
-      if (!secretsResult.isOk || !secretsResult.data) {
-        perf.fail("Webhook config not found");
-        return Result.notFound("Webhook config not found");
-      }
-
-      const isMatch = await bcrypt.compare(
-        verifyToken,
-        secretsResult.data.verifyToken
-      );
-
-      if (!isMatch) {
-        perf.fail("Invalid verify token");
-        return Result.fail("Invalid verify token");
-      }
-
-      perf.complete(1);
-      return Result.ok({ success: true });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to handle challenge";
-      perf.fail(errorMessage);
-      return Result.internal("Failed to handle challenge");
-    }
-  }
-
   static verifySignature(
     signature: string | null,
     rawBody: string,
@@ -361,7 +322,7 @@ export class WebhookIngestService {
     const phoneNumber = contact.wa_id;
     const contactName = contact.profile?.name ?? phoneNumber;
 
-    const ts = parseISO(message.timestamp);
+    const ts = new Date(parseInt(message.timestamp, 10) * 1000);
 
     await tx
       .insert(contactsTable)

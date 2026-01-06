@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
         companyId: whatsappWebhookConfigsTable.companyId,
         whatsappAccountId: whatsappWebhookConfigsTable.whatsappAccountId,
         appSecret: whatsappWebhookConfigsTable.appSecret,
-        status: whatsappWebhookConfigsTable.status,
+        isActive: whatsappWebhookConfigsTable.isActive,
       })
       .from(whatsappWebhookConfigsTable)
       .where(
@@ -92,21 +92,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Webhook config not found" }, { status: 404 });
     }
 
-    if (config.status !== "verified") {
-      return NextResponse.json({ error: "Webhook not verified" }, { status: 403 });
+    if (!config.isActive) {
+      return NextResponse.json({ error: "Webhook is inactive" }, { status: 403 });
     }
 
-    const isValidSignature = WebhookIngestService.verifySignature(
-      signature,
-      rawBody,
-      config.appSecret
-    );
-
-    if (!isValidSignature) {
-      return NextResponse.json({ error: "Invalid signature" }, { status: 403 });
-    }
-
-    const eventTs = parseISO(payload.entry[0].changes[0].value?.messages?.[0]?.timestamp || new Date().toISOString());
+    const whatsappTimestamp = payload.entry[0].changes[0].value?.messages?.[0]?.timestamp;
+    const eventTs = whatsappTimestamp ? new Date(parseInt(whatsappTimestamp, 10) * 1000) : new Date();
 
     const logResult = await WebhookIngestService.logEvent(
       config.companyId,
@@ -116,6 +107,8 @@ export async function POST(request: NextRequest) {
       eventTs
     );
 
+    console.log("LOG RESULT", logResult);
+    
     if (!logResult.success) {
       console.error("Failed to log webhook event:", logResult.message);
       return NextResponse.json({ error: "Failed to process event" }, { status: 500 });

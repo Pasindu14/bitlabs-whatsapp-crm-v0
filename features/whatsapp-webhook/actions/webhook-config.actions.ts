@@ -53,7 +53,6 @@ export const upsertWebhookConfigAction = withAction<
     const result = await WebhookConfigService.upsert({
       appSecret: input.appSecret,
       callbackPath: input.callbackPath,
-      status: input.status,
       companyId: auth.companyId,
       userId: auth.userId,
       whatsappAccountId: input.whatsappAccountId,
@@ -68,32 +67,6 @@ export const upsertWebhookConfigAction = withAction<
   {
     schema: webhookConfigUpsertClientSchema.extend({
       whatsappAccountId: z.number().int().positive(),
-    }),
-  }
-);
-
-export const setWebhookStatusAction = withAction<
-  AccountIdInput & { status: "verified" | "disabled" },
-  WebhookConfigResponse
->(
-  "webhookConfig.setStatus",
-  async (auth, input) => {
-    const result = await WebhookConfigService.setStatus(
-      auth.companyId,
-      auth.userId,
-      input.whatsappAccountId,
-      input.status
-    );
-
-    if (!result.success) {
-      return Result.fail(result.message, result.error);
-    }
-
-    return result;
-  },
-  {
-    schema: webhookAccountIdSchema.extend({
-      status: z.enum(["verified", "disabled"]),
     }),
   }
 );

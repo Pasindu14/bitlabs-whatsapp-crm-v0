@@ -1,8 +1,5 @@
 import { z } from "zod";
 
-export const WEBHOOK_CONFIG_STATUSES = ["unverified", "verified", "disabled"] as const;
-export type WebhookConfigStatus = (typeof WEBHOOK_CONFIG_STATUSES)[number];
-
 export const WEBHOOK_EVENT_TYPES = ["message", "status", "other"] as const;
 export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
 
@@ -21,7 +18,6 @@ export const webhookConfigUpsertClientSchema = z.object({
       (val) => val.startsWith("/") || val.startsWith("https://"),
       "Callback path must start with '/' or be a full HTTPS URL"
     ),
-  status: z.enum(WEBHOOK_CONFIG_STATUSES).optional(),
 });
 
 export type WebhookConfigUpsertClientInput = z.infer<
@@ -45,8 +41,6 @@ export const webhookConfigResponseSchema = z.object({
   companyId: z.number().int().positive(),
   whatsappAccountId: z.number().int().positive(),
   callbackPath: z.string(),
-  status: z.enum(WEBHOOK_CONFIG_STATUSES),
-  lastVerifiedAt: z.date().nullable(),
   isActive: z.boolean(),
   createdAt: z.date(),
   updatedAt: z.date().nullable(),

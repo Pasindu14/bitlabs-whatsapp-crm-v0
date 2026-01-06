@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import {
   getWebhookConfigAction,
   upsertWebhookConfigAction,
-  setWebhookStatusAction,
   listWebhookEventLogsAction,
 } from "../actions/webhook-config.actions";
 import type {
@@ -42,23 +41,6 @@ export function useUpsertWebhookConfig() {
       toast.success("Webhook configuration saved");
       queryClient.invalidateQueries({ queryKey: [WEBHOOK_CONFIG_KEY, variables.whatsappAccountId] });
       queryClient.invalidateQueries({ queryKey: [WEBHOOK_EVENT_LOGS_KEY] });
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-}
-
-export function useSetWebhookStatus() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (data: { whatsappAccountId: number; status: "verified" | "disabled" }) => {
-      const result = await setWebhookStatusAction(data);
-      if (!result.ok) throw new Error(result.error);
-      return result.data;
-    },
-    onSuccess: (_, variables) => {
-      const message = variables.status === "verified" ? "Webhook verified" : "Webhook disabled";
-      toast.success(message);
-      queryClient.invalidateQueries({ queryKey: [WEBHOOK_CONFIG_KEY, variables.whatsappAccountId] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
