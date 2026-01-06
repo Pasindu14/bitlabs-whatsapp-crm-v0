@@ -23,7 +23,6 @@ import type {
   ClearConversationInput,
   DeleteConversationInput,
   ArchiveConversationInput,
-  GetWhatsAppMessageHistoryInput,
 } from '../schemas/conversation-schema';
 
 export const conversationKeys = {
@@ -51,6 +50,7 @@ export function useConversations(filter: ConversationListFilter) {
       if (!result.ok) throw new Error(result.error || 'Failed to load conversations');
       return result.data;
     },
+    enabled: filter.whatsappAccountId !== undefined,
     staleTime: 5000,
     refetchOnWindowFocus: true,
     refetchInterval: 10000,

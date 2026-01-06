@@ -48,6 +48,7 @@ export const conversationFilterSchema = z.object({
   limit: z.number().int().min(1).max(100).default(50),
   includeArchived: z.boolean().default(false),
   assignedUserId: z.number().int().positive().optional(),
+  whatsappAccountId: z.number().int().positive().nullable().optional(),
 });
 
 export type ConversationListFilter = z.infer<typeof conversationFilterSchema>;

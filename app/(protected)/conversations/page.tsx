@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { Plus, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { ConversationList } from '@/features/conversations/components/conversation-list';
 import { MessageList } from '@/features/conversations/components/message-list';
 import { ConversationHeader } from '@/features/conversations/components/conversation-header';
@@ -9,9 +9,10 @@ import { ConversationFilterChips } from '@/features/conversations/components/con
 import { ConversationSearch } from '@/features/conversations/components/conversation-search';
 import { MessageInput } from '@/features/conversations/components/message-input';
 import { NewMessageModal } from '@/features/conversations/components/new-message-modal';
+import { ConversationSidebarHeader } from '@/features/conversations/components/conversation-sidebar-header';
 import { useConversationStore } from '@/features/conversations/store/conversation-store';
-import { useSendNewMessage, useConversations, useWhatsAppMessageHistory, useConversation } from '@/features/conversations/hooks/conversation-hooks';
-import { useDefaultWhatsappAccount } from '@/features/whatsapp-accounts/hooks/use-whatsapp-accounts';
+import { useSendNewMessage, useConversations, useConversation } from '@/features/conversations/hooks/conversation-hooks';
+import { useSelectedWhatsappAccount } from '@/features/conversations/hooks/use-selected-whatsapp-account';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
@@ -26,20 +27,21 @@ export default function ConversationsPage() {
     setSelectedConversation,
   } = useConversationStore();
 
+  const { selectedAccount } = useSelectedWhatsappAccount();
+
   const { isPending: isSending, mutate: sendNewMessage } = useSendNewMessage();
   const { data: selectedConversation } = useConversation(selectedConversationId);
 
   const currentUserId = session.data?.user?.id ? parseInt(session.data.user.id, 10) : undefined;
 
-  const { data: conversationsData } = useConversations({
+  useConversations({
     filterType,
     searchTerm,
     includeArchived: showArchivedSection,
     limit: 50,
     assignedUserId: filterType === 'assigned' ? currentUserId : undefined,
+    whatsappAccountId: selectedAccount?.id ?? null,
   });
-
-  const { data: defaultAccount } = useDefaultWhatsappAccount();
 
 
   const handleSendMessage = async (messageText: string) => {
@@ -76,20 +78,7 @@ export default function ConversationsPage() {
       {/* Sidebar - Hidden on mobile when chat is selected */}
       <div className={`${showChatView ? 'hidden md:flex' : 'flex'} w-80 border-r flex flex-col md:flex`}>
         {/* Header */}
-        <div className="border-b p-4 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Messages</p>
-            <p className="text-lg font-bold">Inbox</p>
-          </div>
-          <Button
-            size="icon"
-            variant="outline"
-            onClick={openNewMessageModal}
-            aria-label="New message"
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
+        <ConversationSidebarHeader onNewMessage={openNewMessageModal} />
 
         {/* Search */}
         <ConversationSearch />
@@ -100,6 +89,7 @@ export default function ConversationsPage() {
             filterType={filterType}
             searchTerm={searchTerm}
             includeArchived={showArchivedSection}
+            whatsappAccountId={selectedAccount?.id ?? null}
           />
         </div>
 

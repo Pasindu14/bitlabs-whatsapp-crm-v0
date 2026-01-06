@@ -8,18 +8,20 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { MessageCircle } from 'lucide-react';
-import type { ConversationFilterType, ConversationResponse, ContactResponse } from '../schemas/conversation-schema';
+import type { ConversationFilterType, ContactResponse } from '../schemas/conversation-schema';
 
 interface ConversationListProps {
   filterType: ConversationFilterType;
   searchTerm: string;
   includeArchived: boolean;
+  whatsappAccountId: number | null;
 }
 
 export function ConversationList({
   filterType,
   searchTerm,
   includeArchived,
+  whatsappAccountId,
 }: ConversationListProps) {
   const session = useSession();
   const { selectedConversationId, setSelectedConversation } = useConversationStore();
@@ -30,6 +32,7 @@ export function ConversationList({
     includeArchived,
     limit: 50,
     assignedUserId: filterType === 'assigned' ? parseInt(session.data?.user.id || '0', 10) || undefined : undefined,
+    whatsappAccountId,
   });
 
   useEffect(() => {

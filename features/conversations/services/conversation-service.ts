@@ -462,6 +462,7 @@ export class ConversationService {
         filterType: filter.filterType,
         limit: filter.limit,
         includeArchived: filter.includeArchived,
+        ...(filter.whatsappAccountId !== undefined && { whatsappAccountId: filter.whatsappAccountId }),
       },
     });
     try {
@@ -478,6 +479,7 @@ export class ConversationService {
         eq(conversationsTable.companyId, companyId),
         eq(conversationsTable.isActive, true),
         filter.includeArchived ? undefined : eq(conversationsTable.isArchived, false),
+        filter.whatsappAccountId ? eq(conversationsTable.whatsappAccountId, filter.whatsappAccountId) : undefined,
       ].filter(Boolean);
 
       if (cursorCondition) {

@@ -6,6 +6,9 @@ interface ConversationStoreState {
   selectedConversationId: number | null;
   setSelectedConversation: (id: number | null) => void;
 
+  selectedWhatsappAccountId: number | null;
+  setSelectedWhatsappAccountId: (id: number | null) => void;
+
   filterType: ConversationFilterType;
   setFilterType: (type: ConversationFilterType) => void;
 
@@ -26,6 +29,9 @@ export const useConversationStore = create<ConversationStoreState>()(
       selectedConversationId: null,
       setSelectedConversation: (id) => set({ selectedConversationId: id }),
 
+      selectedWhatsappAccountId: null,
+      setSelectedWhatsappAccountId: (id) => set({ selectedWhatsappAccountId: id }),
+
       filterType: 'all',
       setFilterType: (type) => set({ filterType: type }),
 
@@ -43,6 +49,7 @@ export const useConversationStore = create<ConversationStoreState>()(
       name: 'conversation-store',
       partialize: (state) => ({
         selectedConversationId: state.selectedConversationId,
+        selectedWhatsappAccountId: state.selectedWhatsappAccountId,
         filterType: state.filterType,
         showArchivedSection: state.showArchivedSection,
       }),
