@@ -359,7 +359,7 @@ export class WebhookIngestService {
     const mediaType = message.type === "image" || message.type === "video" || message.type === "audio" || message.type === "document" ? message.type : null;
     const mediaId = message.image?.id || message.video?.id || message.audio?.id || message.document?.id || null;
     const mediaMimeType = message.image?.mime_type || message.video?.mime_type || message.audio?.mime_type || message.document?.mime_type || null;
-    const messageContent = message.text?.body || (mediaType ? `[${mediaType}]` : "[Media]");
+    const messageContent = message.text?.body || (mediaType === "image" ? "📷 Photo" : mediaType ? `[${mediaType}]` : "[Media]");
 
     await tx
       .insert(conversationsTable)

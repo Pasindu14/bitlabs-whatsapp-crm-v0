@@ -86,9 +86,12 @@ export function MessageList({ conversationId }: MessageListProps) {
                     caption={message.mediaCaption || undefined}
                     className="max-w-[250px]"
                   />
+                  {message.mediaType === 'image' && (
+                    <p className="text-xs opacity-70 mt-1"></p>
+                  )}
                 </div>
               )}
-              {message.content && (
+              {message.content && message.mediaType !== 'image' && (
                 <p className="text-sm">{message.content}</p>
               )}
               <div className="mt-1 flex items-center justify-between gap-2 text-xs opacity-70">

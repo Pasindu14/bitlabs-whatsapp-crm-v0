@@ -75,7 +75,7 @@ export class MessageService {
 
       // Step 4: Create message record (status = 'sending')
       const isImageMessage = 'imageUrl' in input && !!input.imageUrl;
-      const messageContent = input.messageText || (isImageMessage ? '' : '');
+      const messageContent = input.messageText || (isImageMessage ? '📷 Photo' : '');
       
       const messageResult = await ConversationService.createMessage({
         conversationId: conversation.id,
