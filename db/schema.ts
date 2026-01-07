@@ -242,8 +242,6 @@ export const conversationsTable = pgTable("conversations", {
         .on(table.companyId.asc(), table.lastMessageTime.desc(), table.id.asc()),
 ]);
 
-
-// Messages Table
 export const messagesTable = pgTable("messages", {
     id: serial("id").primaryKey(),
     conversationId: integer("conversation_id").references(() => conversationsTable.id).notNull(),
@@ -255,6 +253,9 @@ export const messagesTable = pgTable("messages", {
     content: text("content").notNull(),
     mediaUrl: text("media_url"),
     mediaType: text("media_type"),
+    mediaId: text("media_id"),
+    mediaMimeType: text("media_mime_type"),
+    mediaCaption: text("media_caption"),
     providerMessageId: text("provider_message_id"),
     providerStatus: text("provider_status"),
     errorCode: text("error_code"),

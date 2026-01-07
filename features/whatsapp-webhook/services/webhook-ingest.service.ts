@@ -357,6 +357,8 @@ export class WebhookIngestService {
 
     const mediaUrl = message.image?.url || message.video?.url || message.audio?.url || message.document?.url || null;
     const mediaType = message.type === "image" || message.type === "video" || message.type === "audio" || message.type === "document" ? message.type : null;
+    const mediaId = message.image?.id || message.video?.id || message.audio?.id || message.document?.id || null;
+    const mediaMimeType = message.image?.mime_type || message.video?.mime_type || message.audio?.mime_type || message.document?.mime_type || null;
     const messageContent = message.text?.body || (mediaType ? `[${mediaType}]` : "[Media]");
 
     await tx
@@ -403,6 +405,9 @@ export class WebhookIngestService {
       content: messageContent,
       mediaUrl,
       mediaType,
+      mediaId,
+      mediaMimeType,
+      mediaCaption: null,
       providerMessageId: message.id,
       isActive: true,
       createdAt: ts,

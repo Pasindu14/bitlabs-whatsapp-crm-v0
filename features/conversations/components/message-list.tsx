@@ -8,7 +8,7 @@ import { format } from 'date-fns';
 import { RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useEffect, useRef } from 'react';
-import Image from 'next/image';
+import { MediaPlaceholder } from './media-placeholder';
 
 interface MessageListProps {
   conversationId: number;
@@ -78,14 +78,13 @@ export function MessageList({ conversationId }: MessageListProps) {
                   : 'bg-muted text-foreground'
               }`}
             >
-              {message.mediaUrl && message.mediaType === 'image' && (
+              {message.mediaId && message.mediaType && (
                 <div className="mb-2">
-                  <Image
-                    src={message.mediaUrl}
-                    alt="Sent image"
-                    width={300}
-                    height={300}
-                    className="rounded-lg"
+                  <MediaPlaceholder
+                    mediaId={message.mediaId}
+                    mediaType={message.mediaType as 'image' | 'video' | 'audio' | 'document'}
+                    caption={message.mediaCaption || undefined}
+                    className="max-w-[250px]"
                   />
                 </div>
               )}
