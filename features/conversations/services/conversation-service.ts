@@ -1,6 +1,6 @@
 import { db } from '@/db/drizzle';
 import { contactsTable, conversationsTable, messagesTable, whatsappAccountsTable } from '@/db/schema';
-import { eq, and, desc, lt } from 'drizzle-orm';
+import { eq, and, desc, lt, or, isNull, sql } from 'drizzle-orm';
 import { createPerformanceLogger } from '@/lib/logger';
 import { Result } from '@/lib/result';
 import { AuditLogService } from '@/lib/audit-log.service';
@@ -495,7 +495,14 @@ export class ConversationService {
       if (filter.filterType === 'favorites') {
         baseClauses.push(eq(conversationsTable.isFavorite, true));
       }
-      
+
+      if (filter.filterType === 'assigned' && filter.assignedUserId) {
+        baseClauses.push(eq(conversationsTable.assignedToUserId, filter.assignedUserId));
+      }
+
+      if (filter.filterType === 'all') {
+        baseClauses.push(isNull(conversationsTable.assignedToUserId));
+      }
 
       const whereConditions = and(...baseClauses);
 
@@ -504,11 +511,16 @@ export class ConversationService {
         orderBy: [desc(conversationsTable.lastMessageTime), desc(conversationsTable.id)],
         limit: fetchLimit,
         with: {
-          contact: true,
+          contact: {
+            columns: {
+              id: true,
+              name: true,
+              phone: true,
+            },
+          },
         },
       });
 
-      // Apply search and other filters locally
       let filtered = results;
       if (filter.searchTerm) {
         const searchLower = filter.searchTerm.toLowerCase();
@@ -520,14 +532,6 @@ export class ConversationService {
           );
         });
       }
-      // Apply assigned filter locally
-      if (filter.filterType === 'assigned' && filter.assignedUserId) {
-        filtered = filtered.filter((conv) => conv.assignedToUserId === filter.assignedUserId);
-      }
-      // For 'all' filter, exclude conversations that are assigned to any user
-      if (filter.filterType === 'all') {
-        filtered = filtered.filter((conv) => conv.assignedToUserId === null);
-      }
 
       const hasMore = filtered.length > filter.limit;
       const items = hasMore ? filtered.slice(0, filter.limit) : filtered;
@@ -537,7 +541,7 @@ export class ConversationService {
 
       logger.complete(items.length);
       return Result.ok({
-        conversations: items as ConversationResponse[],
+        conversations: items as unknown as ConversationResponse[],
         nextCursor,
         hasMore,
       }, 'Conversations loaded');

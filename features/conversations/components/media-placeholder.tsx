@@ -59,10 +59,10 @@ export function MediaPlaceholder({
     if (revealed) {
       fetchMedia();
     }
-    // Cleanup on unmount
     return () => {
       if (objectUrlRef.current) {
         URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
       }
     };
   }, [revealed, fetchMedia]);

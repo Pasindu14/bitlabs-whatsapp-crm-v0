@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { MessageCircle } from 'lucide-react';
-import type { ConversationFilterType, ContactResponse } from '../schemas/conversation-schema';
+import type { ConversationFilterType, ContactListResponse } from '../schemas/conversation-schema';
 
 interface ConversationListProps {
   filterType: ConversationFilterType;
@@ -80,7 +80,7 @@ export function ConversationList({
     <ScrollArea className="h-full">
       <div className="space-y-1 p-2">
         {data.conversations.map((conversation) => {
-          const contact = conversation.contact as ContactResponse | undefined;
+          const contact = conversation.contact as ContactListResponse | undefined;
           const isSelected = selectedConversationId === conversation.id;
 
           return (

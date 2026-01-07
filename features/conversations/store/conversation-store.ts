@@ -77,9 +77,7 @@ export const useConversationStore = create<ConversationStoreState>()(
       name: 'conversation-store',
       partialize: (state) => ({
         selectedConversationId: state.selectedConversationId,
-        selectedWhatsappAccountId: state.selectedWhatsappAccountId,
         filterType: state.filterType,
-        showArchivedSection: state.showArchivedSection,
       }),
     }
   )

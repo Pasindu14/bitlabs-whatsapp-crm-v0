@@ -178,6 +178,15 @@ export const contactResponseSchema = z.object({
 
 export type ContactResponse = z.infer<typeof contactResponseSchema>;
 
+// Partial contact schema for list views (performance optimization)
+export const contactListResponseSchema = z.object({
+  id: z.number().int(),
+  name: z.string().nullable(),
+  phone: z.string(),
+});
+
+export type ContactListResponse = z.infer<typeof contactListResponseSchema>;
+
 export const messageResponseSchema = z.object({
   id: z.number().int(),
   conversationId: z.number().int(),
@@ -221,6 +230,26 @@ export const conversationResponseSchema = z.object({
 
 export type ConversationResponse = z.infer<typeof conversationResponseSchema>;
 
+// Conversation list schema with partial contact (performance optimization)
+export const conversationListResponseSchema = z.object({
+  id: z.number().int(),
+  companyId: z.number().int(),
+  contactId: z.number().int(),
+  lastMessageId: z.number().int().nullable(),
+  lastMessagePreview: z.string().nullable(),
+  lastMessageTime: z.date().nullable(),
+  unreadCount: z.number().int(),
+  isFavorite: z.boolean(),
+  isArchived: z.boolean(),
+  assignedToUserId: z.number().int().nullable(),
+  createdAt: z.date(),
+  updatedAt: z.date().nullable(),
+  isActive: z.boolean(),
+  contact: contactListResponseSchema.optional(),
+});
+
+export type ConversationListResponse = z.infer<typeof conversationListResponseSchema>;
+
 // Send new message output
 export const sendNewMessageOutputSchema = z.union([
   z.object({
@@ -255,7 +284,7 @@ export type SendNewMessageOutput = z.infer<typeof sendNewMessageOutputSchema>;
 
 // Conversation list output
 export const conversationListOutputSchema = z.object({
-  conversations: z.array(conversationResponseSchema),
+  conversations: z.array(conversationListResponseSchema),
   nextCursor: z.string().optional(),
   hasMore: z.boolean(),
 });

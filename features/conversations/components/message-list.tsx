@@ -20,11 +20,15 @@ export function MessageList({ conversationId }: MessageListProps) {
     useConversationMessages(conversationId);
   const { mutate: retryMessage, isPending: isRetrying } = useRetryFailedMessage();
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const isInitialMount = useRef(true);
 
   const messages = data?.pages.flatMap((page) => page?.messages || []) || [];
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+    if (!isInitialMount.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+    }
+    isInitialMount.current = false;
   }, [messages.length, conversationId]);
 
   if (isLoading) {

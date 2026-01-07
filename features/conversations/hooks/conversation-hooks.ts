@@ -56,9 +56,9 @@ export function useConversations(filter: ConversationListFilter) {
       return result.data;
     },
     enabled: true,
-    staleTime: 5000,
-    refetchOnWindowFocus: true,
-    refetchInterval: 10000,
+    staleTime: 60000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 }
 
@@ -107,7 +107,7 @@ export function useSendNewMessage() {
       return result.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: conversationKeys.all });
+      queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
       if (data?.success && data.conversationId) {
         queryClient.invalidateQueries({ queryKey: messageKeys.list(data.conversationId) });
       }
@@ -125,8 +125,11 @@ export function useRetryFailedMessage() {
       if (!result.ok) throw new Error(result.error);
       return result.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: messageKeys.all });
+    onSuccess: (data) => {
+      if (data?.success && data.conversationId) {
+        queryClient.invalidateQueries({ queryKey: messageKeys.list(data.conversationId) });
+        queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
+      }
     },
     retry: false,
   });
@@ -140,8 +143,12 @@ export function useMarkConversationAsRead() {
       const result = await markConversationAsReadAction(input);
       if (!result.ok) throw new Error(result.error);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: conversationKeys.all });
+    onSuccess: (_, input) => {
+      queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
+      queryClient.setQueryData(conversationKeys.detail(input.conversationId), (old: any) => {
+        if (!old) return old;
+        return { ...old, unreadCount: 0 };
+      });
     },
     retry: false,
   });
@@ -156,7 +163,7 @@ export function useAssignConversation() {
       if (!result.ok) throw new Error(result.error);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: conversationKeys.all });
+      queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
     },
     retry: false,
   });
@@ -170,9 +177,9 @@ export function useClearConversation() {
       const result = await clearConversationAction(input);
       if (!result.ok) throw new Error(result.error);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: conversationKeys.all });
-      queryClient.invalidateQueries({ queryKey: messageKeys.all });
+    onSuccess: (_, input) => {
+      queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: messageKeys.list(input.conversationId) });
     },
     retry: false,
   });
@@ -187,7 +194,7 @@ export function useDeleteConversation() {
       if (!result.ok) throw new Error(result.error);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: conversationKeys.all });
+      queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
     },
     retry: false,
   });
@@ -202,7 +209,7 @@ export function useArchiveConversation() {
       if (!result.ok) throw new Error(result.error);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: conversationKeys.all });
+      queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
     },
     retry: false,
   });
@@ -217,7 +224,7 @@ export function useUnarchiveConversation() {
       if (!result.ok) throw new Error(result.error);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: conversationKeys.all });
+      queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
     },
     retry: false,
   });
