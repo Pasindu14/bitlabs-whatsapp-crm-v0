@@ -5,6 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Smartphone, Shield, CheckCircle, Server, Activity, Webhook } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 import { QualityRatingBadge } from './quality-rating-badge';
 import { VerificationStatusBadge } from './verification-status-badge';
 import type { WhatsappPhoneProfileResponse } from '../schemas/whatsapp-phone-profile.schema';
@@ -17,30 +18,6 @@ interface WhatsAppPhoneProfileCardProps {
 }
 
 export function WhatsAppPhoneProfileCard({ profile, isLoading, error, onRefresh }: WhatsAppPhoneProfileCardProps) {
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Phone Profile</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-6 w-48" />
-          </div>
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-6 w-40" />
-          </div>
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="h-6 w-36" />
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
   if (error) {
     return (
       <Alert variant="destructive">
