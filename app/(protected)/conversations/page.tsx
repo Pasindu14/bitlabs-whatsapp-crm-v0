@@ -44,7 +44,7 @@ export default function ConversationsPage() {
   });
 
 
-  const handleSendMessage = async (messageText: string) => {
+  const handleSendMessage = async (messageText: string, imageUrl?: string, imageKey?: string) => {
     if (!selectedConversationId) {
       toast.error('Please select a conversation first');
       return;
@@ -59,6 +59,8 @@ export default function ConversationsPage() {
       await sendNewMessage({
         phoneNumber: selectedConversation.contact.phone,
         messageText,
+        imageUrl,
+        imageKey,
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
@@ -132,6 +134,7 @@ export default function ConversationsPage() {
             <MessageInput
               onSend={handleSendMessage}
               isLoading={isSending}
+              conversationId={selectedConversationId}
             />
           </>
         ) : (

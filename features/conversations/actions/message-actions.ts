@@ -4,11 +4,16 @@ import { withAction } from '@/lib/server-action-helper';
 import { Result } from '@/lib/result';
 import { z } from 'zod';
 import { MessageService } from '../services/message-service';
+import { UploadThingService } from '@/lib/uploadthing-service';
 import {
   sendNewMessageClientSchema,
   sendNewMessageOutputSchema,
+  sendMessageWithImageClientSchema,
+  fileUploadResponseSchema,
   type SendNewMessageInput,
   type SendNewMessageOutput,
+  type SendMessageWithImageInput,
+  type FileUploadResponse,
 } from '../schemas/conversation-schema';
 
 export const sendNewMessageAction = withAction<SendNewMessageInput, SendNewMessageOutput>(
@@ -43,4 +48,24 @@ export const retryFailedMessageAction = withAction<number, SendNewMessageOutput>
     return Result.ok(validated, 'Message retried');
   },
   { schema: z.number().int().positive() }
+);
+
+export const uploadImageAction = withAction(
+  'conversations.uploadImage',
+  async (auth, input: { fileKey: string; fileUrl: string; fileName: string; fileSize: number; fileType: string; conversationId: number }) => {
+    const result = await UploadThingService.saveFileUpload(
+      input.fileKey,
+      input.fileUrl,
+      input.fileName,
+      input.fileSize,
+      input.fileType,
+      auth.companyId,
+      auth.userId,
+      input.conversationId
+    );
+    if (!result.success) return result;
+
+    const validated = fileUploadResponseSchema.parse(result.data);
+    return Result.ok(validated, 'Image uploaded successfully');
+  }
 );

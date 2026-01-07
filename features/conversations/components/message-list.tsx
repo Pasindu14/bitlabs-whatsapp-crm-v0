@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useEffect, useRef } from 'react';
+import Image from 'next/image';
 
 interface MessageListProps {
   conversationId: number;
@@ -77,7 +78,20 @@ export function MessageList({ conversationId }: MessageListProps) {
                   : 'bg-muted text-foreground'
               }`}
             >
-              <p className="text-sm">{message.content}</p>
+              {message.mediaUrl && message.mediaType === 'image' && (
+                <div className="mb-2">
+                  <Image
+                    src={message.mediaUrl}
+                    alt="Sent image"
+                    width={300}
+                    height={300}
+                    className="rounded-lg"
+                  />
+                </div>
+              )}
+              {message.content && (
+                <p className="text-sm">{message.content}</p>
+              )}
               <div className="mt-1 flex items-center justify-between gap-2 text-xs opacity-70">
                 <span>{format(new Date(message.createdAt), 'HH:mm')}</span>
                 {message.direction === 'outbound' && (

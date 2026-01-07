@@ -31,7 +31,7 @@ export function ConversationList({
     searchTerm,
     includeArchived,
     limit: 50,
-    assignedUserId: filterType === 'assigned' ? parseInt(session.data?.user.id || '0', 10) || undefined : undefined,
+    assignedUserId: filterType === 'assigned' && session.data?.user.id ? parseInt(session.data.user.id, 10) : undefined,
     whatsappAccountId,
   });
 

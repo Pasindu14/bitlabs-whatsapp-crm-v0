@@ -11,7 +11,7 @@ import { useNoteStore } from '../store/note-store';
 import { toast } from 'sonner';
 
 export function CreateNoteDialog() {
-  const { isCreateDialogOpen, conversationId, closeCreateDialog } = useNoteStore();
+  const { isDialogOpen, conversationId, closeDialog } = useNoteStore();
   const createNoteMutation = useCreateConversationNote();
   const [content, setContent] = useState('');
   const [isPinned, setIsPinned] = useState(false);
@@ -20,7 +20,7 @@ export function CreateNoteDialog() {
   const handleClose = () => {
     setContent('');
     setIsPinned(false);
-    closeCreateDialog();
+    closeDialog();
   };
 
   const handleSubmit = async () => {
@@ -46,7 +46,7 @@ export function CreateNoteDialog() {
   };
 
   return (
-    <Dialog open={isCreateDialogOpen} onOpenChange={handleClose}>
+    <Dialog open={isDialogOpen} onOpenChange={handleClose}>
       <DialogContent className="min-w-6xl max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Add Note</DialogTitle>

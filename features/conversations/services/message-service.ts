@@ -8,14 +8,19 @@ import axios from 'axios';
 import type {
   SendNewMessageServerInput,
   SendNewMessageOutput,
+  SendMessageWithImageServerInput,
 } from '../schemas/conversation-schema';
 
 export class MessageService {
   static async sendNewMessage(
-    input: SendNewMessageServerInput
+    input: SendNewMessageServerInput | SendMessageWithImageServerInput
   ): Promise<Result<SendNewMessageOutput>> {
     const logger = createPerformanceLogger('MessageService.sendNewMessage', {
-      context: { companyId: input.companyId, phoneNumber: input.phoneNumber },
+      context: { 
+        companyId: input.companyId, 
+        phoneNumber: input.phoneNumber,
+        hasImage: 'imageUrl' in input && !!input.imageUrl,
+      },
     });
 
     try {
@@ -55,14 +60,33 @@ export class MessageService {
       }
       const createdConversation = !conversation.id;
 
-      // Step 3: Create message record (status = 'sending')
+      // Step 3: Get WhatsApp account credentials for the company
+      const whatsappAccount = await db.query.whatsappAccountsTable.findFirst({
+        where: and(
+          eq(whatsappAccountsTable.companyId, input.companyId),
+          eq(whatsappAccountsTable.isActive, true)
+        ),
+      });
+
+      if (!whatsappAccount) {
+        logger.fail('No active WhatsApp account found for company');
+        return Result.fail('No active WhatsApp account configured', { code: 'INTERNAL_ERROR' });
+      }
+
+      // Step 4: Create message record (status = 'sending')
+      const isImageMessage = 'imageUrl' in input && !!input.imageUrl;
+      const messageContent = input.messageText || (isImageMessage ? '' : '');
+      
       const messageResult = await ConversationService.createMessage({
         conversationId: conversation.id,
         companyId: input.companyId,
         contactId: contact.id,
         direction: 'outbound',
         status: 'sending',
-        content: input.messageText,
+        content: messageContent,
+        mediaUrl: isImageMessage ? input.imageUrl : undefined,
+        mediaType: isImageMessage ? 'image' : undefined,
+        whatsappAccountId: whatsappAccount.id,
         createdBy: input.userId,
       });
 
@@ -77,43 +101,44 @@ export class MessageService {
         return Result.internal('Message data missing');
       }
 
-      // Step 4: Get WhatsApp account credentials for the company
-      const whatsappAccount = await db.query.whatsappAccountsTable.findFirst({
-        where: and(
-          eq(whatsappAccountsTable.companyId, input.companyId),
-          eq(whatsappAccountsTable.isActive, true)
-        ),
-      });
-
-      if (!whatsappAccount) {
-        logger.fail('No active WhatsApp account found for company');
-        // Update message status to failed
-        await ConversationService.updateMessageStatus(
-          message.id,
-          input.companyId,
-          'failed',
-          undefined,
-          'No active WhatsApp account configured',
-          input.userId
-        );
-        return Result.fail('No active WhatsApp account configured', { code: 'INTERNAL_ERROR' });
-      }
-
       // Step 5: Send message via WhatsApp API
       let finalStatus: 'sent' | 'failed' = 'sent';
       let providerMessageId: string | undefined;
       let errorMessage: string | undefined;
 
       try {
+        const isImageMessage = 'imageUrl' in input && !!input.imageUrl;
+        
+        interface WhatsAppApiRequestBody {
+          companyId: number;
+          recipientPhoneNumber: string;
+          phoneNumberId: string;
+          accessToken: string;
+          type: 'text' | 'image';
+          text?: string;
+          mediaUrl?: string;
+        }
+        
+        const requestBody: WhatsAppApiRequestBody = {
+          companyId: input.companyId,
+          recipientPhoneNumber: input.phoneNumber,
+          phoneNumberId: whatsappAccount.phoneNumberId,
+          accessToken: whatsappAccount.accessToken,
+          type: isImageMessage ? 'image' : 'text',
+        };
+
+        if (isImageMessage) {
+          requestBody.mediaUrl = input.imageUrl;
+          if (input.messageText) {
+            requestBody.text = input.messageText;
+          }
+        } else {
+          requestBody.text = input.messageText;
+        }
+
         const response = await axios.post(
           `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/conversations/send-message`,
-          {
-            companyId: input.companyId,
-            recipientPhoneNumber: input.phoneNumber,
-            text: input.messageText,
-            phoneNumberId: whatsappAccount.phoneNumberId,
-            accessToken: whatsappAccount.accessToken,
-          },
+          requestBody,
           {
             headers: {
               'Content-Type': 'application/json',
@@ -161,7 +186,7 @@ export class MessageService {
         conversation.id,
         input.companyId,
         message.id,
-        input.messageText,
+        messageContent,
         input.userId
       );
 
@@ -182,7 +207,7 @@ export class MessageService {
         message: {
           id: message.id,
           status: finalStatus,
-          content: input.messageText,
+          content: messageContent,
           createdAt: message.createdAt,
         },
       }, 'Message sent');

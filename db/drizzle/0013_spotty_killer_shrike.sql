@@ -1,0 +1,1 @@
+ALTER TABLE "file_uploads" DROP CONSTRAINT "file_uploads_file_key_unique";

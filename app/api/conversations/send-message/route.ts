@@ -5,15 +5,17 @@ import type { SendTextMessageRequest, SendTextMessageResponse } from "../types";
 /**
  * POST /api/whatsapp/send
  *
- * Sends a text message via WhatsApp Cloud API
+ * Sends a text or image message via WhatsApp Cloud API
  *
  * Expected request body:
  * {
  *   companyId: number;
  *   recipientPhoneNumber: string;
- *   text: string;
  *   phoneNumberId: string;
  *   accessToken: string;
+ *   type: "text" | "image";
+ *   text?: string;
+ *   mediaUrl?: string;
  * }
  */
 export async function POST(
@@ -32,7 +34,13 @@ export async function POST(
     }
 
     // Validate required fields
-    const { companyId, recipientPhoneNumber, text, phoneNumberId, accessToken } = body as SendTextMessageRequest & { phoneNumberId?: string; accessToken?: string };
+    const { companyId, recipientPhoneNumber, phoneNumberId, accessToken, type, text, mediaUrl } = body as SendTextMessageRequest & { 
+      phoneNumberId?: string; 
+      accessToken?: string;
+      type?: 'text' | 'image';
+      text?: string;
+      mediaUrl?: string;
+    };
 
     if (!companyId || typeof companyId !== "number") {
       return NextResponse.json(
@@ -44,13 +52,6 @@ export async function POST(
     if (!recipientPhoneNumber || typeof recipientPhoneNumber !== "string") {
       return NextResponse.json(
         { success: false, error: "Missing or invalid recipientPhoneNumber" },
-        { status: 400 }
-      );
-    }
-
-    if (!text || typeof text !== "string" || text.trim().length === 0) {
-      return NextResponse.json(
-        { success: false, error: "Missing or invalid text" },
         { status: 400 }
       );
     }
@@ -69,6 +70,27 @@ export async function POST(
       );
     }
 
+    if (!type || (type !== "text" && type !== "image")) {
+      return NextResponse.json(
+        { success: false, error: "Missing or invalid type (must be 'text' or 'image')" },
+        { status: 400 }
+      );
+    }
+
+    if (type === "text" && (!text || typeof text !== "string" || text.trim().length === 0)) {
+      return NextResponse.json(
+        { success: false, error: "Missing or invalid text for text message" },
+        { status: 400 }
+      );
+    }
+
+    if (type === "image" && (!mediaUrl || typeof mediaUrl !== "string")) {
+      return NextResponse.json(
+        { success: false, error: "Missing or invalid mediaUrl for image message" },
+        { status: 400 }
+      );
+    }
+
     // Get API version from environment (constant)
     const apiVersion = process.env.WHATSAPP_API_VERSION || "v18.0";
 
@@ -82,13 +104,40 @@ export async function POST(
 
     // Prepare WhatsApp API request
     const apiUrl = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
-    const payload = {
+    
+    interface WhatsAppTextPayload {
+      messaging_product: "whatsapp";
+      recipient_type: "individual";
+      to: string;
+      type: "text";
+      text: { body: string };
+    }
+    
+    interface WhatsAppImagePayload {
+      messaging_product: "whatsapp";
+      recipient_type: "individual";
+      to: string;
+      type: "image";
+      image: { link: string; caption?: string };
+    }
+    
+    const payload: WhatsAppTextPayload | WhatsAppImagePayload = {
       messaging_product: "whatsapp",
       recipient_type: "individual",
       to: recipientPhoneNumber.replace("+", ""),
-      type: "text",
-      text: { body: text },
-    };
+      type: type,
+    } as WhatsAppTextPayload | WhatsAppImagePayload;
+
+    if (type === "text") {
+      (payload as WhatsAppTextPayload).text = { body: text };
+    } else if (type === "image") {
+      (payload as WhatsAppImagePayload).image = {
+        link: mediaUrl!,
+      };
+      if (text && text.trim()) {
+        (payload as WhatsAppImagePayload).image.caption = text;
+      }
+    }
 
     const maxRetries = 3;
     const retryDelayMs = 1000;

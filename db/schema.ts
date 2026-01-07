@@ -421,3 +421,41 @@ export const whatsappWebhookEventLogsTable = pgTable("whatsapp_webhook_event_log
     .using("gin", table.payload),
 ]);
 
+export const fileUploadsTable = pgTable("file_uploads", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companiesTable.id).notNull(),
+  conversationId: integer("conversation_id").references(() => conversationsTable.id).notNull(),
+  fileKey: text("file_key").notNull(),
+  fileName: text("file_name").notNull(),
+  fileUrl: text("file_url").notNull(),
+  fileSize: integer("file_size").notNull(),
+  fileType: text("file_type").notNull(),
+  mimeType: text("mime_type").notNull(),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  uploadedBy: integer("uploaded_by").references((): any => usersTable.id).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
+}, (table) => [
+  index("file_uploads_company_id_idx").on(table.companyId.asc()),
+  uniqueIndex("file_uploads_file_key_unique").on(table.fileKey.asc()),
+  index("file_uploads_conversation_id_idx").on(table.conversationId.asc()),
+  index("file_uploads_uploaded_by_idx").on(table.uploadedBy.asc()),
+  index("file_uploads_company_created_id_idx").on(table.companyId.asc(), table.createdAt.desc(), table.id.asc()),
+  index("file_uploads_company_file_type_idx").on(table.companyId.asc(), table.fileType.asc()),
+]);
+
+export const fileUploadRelations = relations(fileUploadsTable, ({ one }) => ({
+  company: one(companiesTable, {
+    fields: [fileUploadsTable.companyId],
+    references: [companiesTable.id],
+  }),
+  conversation: one(conversationsTable, {
+    fields: [fileUploadsTable.conversationId],
+    references: [conversationsTable.id],
+  }),
+  uploader: one(usersTable, {
+    fields: [fileUploadsTable.uploadedBy],
+    references: [usersTable.id],
+  }),
+}));
+

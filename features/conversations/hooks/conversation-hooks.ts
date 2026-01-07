@@ -43,6 +43,7 @@ export const messageKeys = {
 };
 
 export function useConversations(filter: ConversationListFilter) {
+  console.log(filter);
   return useQuery({
     queryKey: conversationKeys.list(filter),
     queryFn: async () => {
@@ -50,7 +51,7 @@ export function useConversations(filter: ConversationListFilter) {
       if (!result.ok) throw new Error(result.error || 'Failed to load conversations');
       return result.data;
     },
-    enabled: filter.whatsappAccountId !== undefined,
+    enabled: true,
     staleTime: 5000,
     refetchOnWindowFocus: true,
     refetchInterval: 10000,
@@ -96,7 +97,7 @@ export function useSendNewMessage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: SendNewMessageInput) => {
+    mutationFn: async (input: SendNewMessageInput & { imageUrl?: string; imageKey?: string }) => {
       const result = await sendNewMessageAction(input);
       if (!result.ok) throw new Error(result.error);
       return result.data;

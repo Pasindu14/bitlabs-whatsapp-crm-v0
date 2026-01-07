@@ -24,6 +24,9 @@ interface CreateMessageInput {
   status: MessageStatus;
   content: string;
   createdBy: number;
+  mediaUrl?: string;
+  mediaType?: string;
+  whatsappAccountId?: number;
 }
 
 interface MessagePage {
@@ -222,6 +225,9 @@ export class ConversationService {
           direction: input.direction,
           status: input.status,
           content: input.content,
+          mediaUrl: input.mediaUrl,
+          mediaType: input.mediaType,
+          whatsappAccountId: input.whatsappAccountId,
           createdBy: input.createdBy,
           isActive: true,
         })

@@ -10,6 +10,9 @@ export type MessageStatus = (typeof MESSAGE_STATUSES)[number];
 export const MESSAGE_DIRECTIONS = ['inbound', 'outbound'] as const;
 export type MessageDirection = (typeof MESSAGE_DIRECTIONS)[number];
 
+export const FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+export type FileType = (typeof FILE_TYPES)[number];
+
 // Phone number validation and normalization
 export const phoneNumberSchema = z
   .string()
@@ -31,6 +34,47 @@ export const sendNewMessageClientSchema = z.object({
 });
 
 export type SendNewMessageInput = z.infer<typeof sendNewMessageClientSchema>;
+
+// File upload schema
+export const fileUploadClientSchema = z.object({
+  file: z.instanceof(File)
+    .refine((f) => f.size <= 4 * 1024 * 1024, 'File size must be less than 4MB')
+    .refine((f) => FILE_TYPES.includes(f.type as FileType), 'Invalid file type. Supported: JPEG, PNG, WEBP'),
+});
+
+export type FileUploadInput = z.infer<typeof fileUploadClientSchema>;
+
+// Send message with image - Client schema (extends existing)
+export const sendMessageWithImageClientSchema = z.object({
+  phoneNumber: phoneNumberSchema,
+  messageText: messageTextSchema.optional(),
+  imageUrl: z.string().url().optional(),
+  imageKey: z.string().min(1).optional(),
+}).refine(
+  (data) => data.messageText || data.imageUrl,
+  'Either messageText or imageUrl is required'
+);
+
+export type SendMessageWithImageInput = z.infer<typeof sendMessageWithImageClientSchema>;
+
+// Send message with image - Server schema (extends client + auth)
+export const sendMessageWithImageServerSchema = sendMessageWithImageClientSchema.safeExtend({
+  companyId: z.number().int().positive(),
+  userId: z.number().int().positive(),
+});
+
+export type SendMessageWithImageServerInput = z.infer<typeof sendMessageWithImageServerSchema>;
+
+// File upload response schema
+export const fileUploadResponseSchema = z.object({
+  fileKey: z.string(),
+  fileUrl: z.string().url(),
+  fileName: z.string(),
+  fileSize: z.number().int().positive(),
+  fileType: z.enum(FILE_TYPES),
+});
+
+export type FileUploadResponse = z.infer<typeof fileUploadResponseSchema>;
 
 // Send new message - Server schema (extends client + auth)
 export const sendNewMessageServerSchema = sendNewMessageClientSchema.extend({

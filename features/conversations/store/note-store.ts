@@ -5,11 +5,14 @@ interface NoteStore {
   conversationId: number | null;
   isDeleteDialogOpen: boolean;
   deletingNoteId: number | null;
+  editingNoteId: number | null;
 
   openDialog: (conversationId: number) => void;
   closeDialog: () => void;
   openDeleteDialog: (noteId: number, conversationId: number) => void;
   closeDeleteDialog: () => void;
+  openEditDialog: (noteId: number, conversationId: number) => void;
+  closeEditDialog: () => void;
 }
 
 export const useNoteStore = create<NoteStore>((set) => ({
@@ -17,6 +20,7 @@ export const useNoteStore = create<NoteStore>((set) => ({
   conversationId: null,
   isDeleteDialogOpen: false,
   deletingNoteId: null,
+  editingNoteId: null,
 
   openDialog: (conversationId) =>
     set({
@@ -41,6 +45,18 @@ export const useNoteStore = create<NoteStore>((set) => ({
     set({
       isDeleteDialogOpen: false,
       deletingNoteId: null,
+      conversationId: null,
+    }),
+
+  openEditDialog: (noteId, conversationId) =>
+    set({
+      editingNoteId: noteId,
+      conversationId,
+    }),
+
+  closeEditDialog: () =>
+    set({
+      editingNoteId: null,
       conversationId: null,
     }),
 }));
