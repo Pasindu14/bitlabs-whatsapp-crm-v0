@@ -16,7 +16,7 @@ import {
   type FileUploadResponse,
 } from '../schemas/conversation-schema';
 
-export const sendNewMessageAction = withAction<SendNewMessageInput, SendNewMessageOutput>(
+export const sendNewMessageAction = withAction<SendNewMessageInput | SendMessageWithImageInput, SendNewMessageOutput>(
   'conversations.sendMessage',
   async (auth, input) => {
     const serverInput = {
@@ -31,7 +31,7 @@ export const sendNewMessageAction = withAction<SendNewMessageInput, SendNewMessa
     const validated = sendNewMessageOutputSchema.parse(result.data);
     return Result.ok(validated, 'Message sent');
   },
-  { schema: sendNewMessageClientSchema }
+  { schema: sendMessageWithImageClientSchema }
 );
 
 export const retryFailedMessageAction = withAction<number, SendNewMessageOutput>(

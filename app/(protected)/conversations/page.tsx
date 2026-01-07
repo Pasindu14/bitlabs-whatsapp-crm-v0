@@ -56,12 +56,20 @@ export default function ConversationsPage() {
     }
 
     try {
-      await sendNewMessage({
+      const payload: { phoneNumber: string; messageText?: string; imageUrl?: string; imageKey?: string } = {
         phoneNumber: selectedConversation.contact.phone,
-        messageText,
-        imageUrl,
-        imageKey,
-      });
+      };
+      
+      if (messageText.trim()) {
+        payload.messageText = messageText;
+      }
+      
+      if (imageUrl) {
+        payload.imageUrl = imageUrl;
+        payload.imageKey = imageKey;
+      }
+      
+      await sendNewMessage(payload);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
       toast.error(errorMessage);

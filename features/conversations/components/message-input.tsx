@@ -16,6 +16,10 @@ import {
 import { useConversationStore } from '../store/conversation-store';
 import { Plus, Send, X, Loader2, Image as ImageIcon } from 'lucide-react';
 import { ImageAttachmentPopover } from './image-attachment-popover';
+import { generateReactHelpers } from '@uploadthing/react';
+import type { OurFileRouter } from '@/app/api/uploadthing/core';
+import { uploadImageAction } from '../actions/message-actions';
+import { toast } from 'sonner';
 
 interface MessageInputProps {
   onSend: (message: string, imageUrl?: string, imageKey?: string) => void;
@@ -24,16 +28,56 @@ interface MessageInputProps {
   conversationId: number;
 }
 
+const { useUploadThing } = generateReactHelpers<OurFileRouter>();
+
 export function MessageInput({ onSend, isLoading = false, disabled = false, conversationId }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const { selectedImage, clearSelectedImage } = useConversationStore();
 
-  const handleSend = () => {
-    if (message.trim() || selectedImage?.uploadUrl) {
-      onSend(message, selectedImage?.uploadUrl, selectedImage?.uploadKey);
+  const { startUpload } = useUploadThing('imageUploader', {
+    onClientUploadComplete: async (uploaded) => {
+      const uploadedFile = uploaded?.[0];
+      if (!uploadedFile) {
+        toast.error('Upload failed');
+        setIsUploading(false);
+        return;
+      }
+
+      const result = await uploadImageAction({
+        fileKey: uploadedFile.key,
+        fileUrl: uploadedFile.url,
+        fileName: uploadedFile.name,
+        fileSize: uploadedFile.size,
+        fileType: uploadedFile.type,
+        conversationId,
+      });
+
+      setIsUploading(false);
+
+      if (result.ok) {
+        onSend(message, uploadedFile.url, uploadedFile.key);
+        setMessage('');
+        clearSelectedImage();
+        toast.success('Image sent successfully');
+      } else {
+        toast.error(result.error || 'Failed to upload image');
+      }
+    },
+    onUploadError: (error) => {
+      toast.error(error.message || 'Upload failed');
+      setIsUploading(false);
+    },
+  });
+
+  const handleSend = async () => {
+    if (selectedImage?.file) {
+      setIsUploading(true);
+      await startUpload([selectedImage.file]);
+    } else if (message.trim()) {
+      onSend(message);
       setMessage('');
-      clearSelectedImage();
     }
   };
 
@@ -116,7 +160,6 @@ export function MessageInput({ onSend, isLoading = false, disabled = false, conv
             <ImageAttachmentPopover
               conversationId={conversationId}
               onImageUploaded={handleImageUploaded}
-              onSend={onSend}
             />
           </DialogContent>
         </Dialog>
@@ -133,9 +176,9 @@ export function MessageInput({ onSend, isLoading = false, disabled = false, conv
         <Button
           size="icon"
           onClick={handleSend}
-          disabled={disabled || isLoading || (!message.trim() && !selectedImage?.uploadUrl)}
+          disabled={disabled || isLoading || isUploading || (!message.trim() && !selectedImage?.file)}
         >
-          {isLoading ? (
+          {isLoading || isUploading ? (
             <Loader2 className="h-5 w-5 animate-spin" />
           ) : (
             <Send className="h-5 w-5" />

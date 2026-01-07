@@ -35,7 +35,6 @@ import {
 export const listConversationsAction = withAction<ConversationListFilter, ConversationListOutput>(
   'conversations.list',
   async (auth, filter) => {
-    console.log(filter);
     const result = await ConversationService.listConversations(auth.companyId, filter);
     if (!result.isOk) return result;
 

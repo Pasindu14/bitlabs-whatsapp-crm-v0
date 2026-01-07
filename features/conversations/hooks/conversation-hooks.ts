@@ -18,11 +18,16 @@ import {
 import type {
   ConversationListFilter,
   SendNewMessageInput,
-  MarkAsReadInput,
-  AssignConversationInput,
+  SendMessageWithImageInput,
+  GetMessagesInput,
+  GetConversationInput,
+  UpdateContactNameInput,
   ClearConversationInput,
   DeleteConversationInput,
   ArchiveConversationInput,
+  AssignConversationInput,
+  MarkAsReadInput,
+  GetWhatsAppMessageHistoryInput,
 } from '../schemas/conversation-schema';
 
 export const conversationKeys = {
@@ -43,7 +48,6 @@ export const messageKeys = {
 };
 
 export function useConversations(filter: ConversationListFilter) {
-  console.log(filter);
   return useQuery({
     queryKey: conversationKeys.list(filter),
     queryFn: async () => {
@@ -97,7 +101,7 @@ export function useSendNewMessage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: SendNewMessageInput & { imageUrl?: string; imageKey?: string }) => {
+    mutationFn: async (input: SendMessageWithImageInput) => {
       const result = await sendNewMessageAction(input);
       if (!result.ok) throw new Error(result.error);
       return result.data;
