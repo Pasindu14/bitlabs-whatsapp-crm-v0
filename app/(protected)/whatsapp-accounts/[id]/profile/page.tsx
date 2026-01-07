@@ -6,7 +6,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Smartphone, Shield, CheckCircle, Server, Activity, Webhook } from 'lucide-react';
+import { RefreshCw, Smartphone, Shield, CheckCircle, Server, Activity, Webhook, TrendingUp } from 'lucide-react';
 import { QualityRatingBadge } from '@/features/whatsapp-accounts/components/quality-rating-badge';
 import { VerificationStatusBadge } from '@/features/whatsapp-accounts/components/verification-status-badge';
 import type { WhatsappPhoneProfileResponse } from '@/features/whatsapp-accounts/schemas/whatsapp-phone-profile.schema';
@@ -80,6 +80,7 @@ function ProfileView({ accountId }: { accountId: number }) {
     phoneNumberId: account?.phoneNumberId || '',
     includeNameStatus: true,
     includeCodeVerification: true,
+    includeMessagingLimit: true,
   });
 
   if (!account) {
@@ -218,6 +219,16 @@ function ProfileView({ accountId }: { accountId: number }) {
               <span>Code Verification</span>
             </div>
             <VerificationStatusBadge type="code" status={profile.code_verification_status} />
+          </div>
+        )}
+
+        {profile.whatsapp_business_manager_messaging_limit && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <TrendingUp className="h-4 w-4" />
+              <span>Messaging Limit</span>
+            </div>
+            <p className="text-lg font-semibold">{profile.whatsapp_business_manager_messaging_limit}</p>
           </div>
         )}
       </CardContent>

@@ -32,6 +32,7 @@ export const whatsappPhoneProfileResponseSchema = z.object({
   webhook_configuration: z.object({
     application: z.string().optional(),
   }).optional(),
+  whatsapp_business_manager_messaging_limit: z.string().optional(),
 }).passthrough();
 
 export type WhatsappPhoneProfileResponse = z.infer<typeof whatsappPhoneProfileResponseSchema>;

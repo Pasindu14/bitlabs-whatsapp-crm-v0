@@ -13,6 +13,7 @@ interface UseWhatsappPhoneProfileParams {
   includeQualityRating?: boolean;
   includeNameStatus?: boolean;
   includeCodeVerification?: boolean;
+  includeMessagingLimit?: boolean;
 }
 
 function buildFieldsParam(params: UseWhatsappPhoneProfileParams): string | undefined {
@@ -24,13 +25,14 @@ function buildFieldsParam(params: UseWhatsappPhoneProfileParams): string | undef
   if (params.includeQualityRating) fields.push('quality_rating');
   if (params.includeNameStatus) fields.push('name_status');
   if (params.includeCodeVerification) fields.push('code_verification_status');
+  if (params.includeMessagingLimit) fields.push('whatsapp_business_manager_messaging_limit');
   
   return fields.length > 0 ? fields.join(',') : undefined;
 }
 
 export function useWhatsappPhoneProfile(params: UseWhatsappPhoneProfileParams) {
   return useQuery({
-    queryKey: [WHATSAPP_ACCOUNTS_KEY, 'profile', params.phoneNumberId, params.includeId, params.includeDisplayPhoneNumber, params.includeVerifiedName, params.includeQualityRating, params.includeNameStatus, params.includeCodeVerification],
+    queryKey: [WHATSAPP_ACCOUNTS_KEY, 'profile', params.phoneNumberId, params.includeId, params.includeDisplayPhoneNumber, params.includeVerifiedName, params.includeQualityRating, params.includeNameStatus, params.includeCodeVerification, params.includeMessagingLimit],
     queryFn: async () => {
       const result = await getWhatsappPhoneProfileAction({
         phoneNumberId: params.phoneNumberId,
