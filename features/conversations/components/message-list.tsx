@@ -91,6 +91,41 @@ export function MessageList({ conversationId }: MessageListProps) {
                   )}
                 </div>
               )}
+              {message.mediaUrl && message.mediaType && !message.mediaId && (
+                <div className="mb-2">
+                  {message.mediaType === 'image' && (
+                    <img
+                      src={message.mediaUrl}
+                      alt="Sent image"
+                      className="max-w-[250px] rounded-lg"
+                    />
+                  )}
+                  {message.mediaType === 'video' && (
+                    <video
+                      src={message.mediaUrl}
+                      controls
+                      className="max-w-[250px] rounded-lg"
+                    />
+                  )}
+                  {message.mediaType === 'audio' && (
+                    <audio
+                      src={message.mediaUrl}
+                      controls
+                      className="w-full"
+                    />
+                  )}
+                  {message.mediaType === 'document' && (
+                    <a
+                      href={message.mediaUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm underline"
+                    >
+                      📄 Document
+                    </a>
+                  )}
+                </div>
+              )}
               {message.content && message.mediaType !== 'image' && (
                 <p className="text-sm">{message.content}</p>
               )}

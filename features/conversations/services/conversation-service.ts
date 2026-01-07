@@ -524,6 +524,10 @@ export class ConversationService {
       if (filter.filterType === 'assigned' && filter.assignedUserId) {
         filtered = filtered.filter((conv) => conv.assignedToUserId === filter.assignedUserId);
       }
+      // For 'all' filter, exclude conversations that are assigned to any user
+      if (filter.filterType === 'all') {
+        filtered = filtered.filter((conv) => conv.assignedToUserId === null);
+      }
 
       const hasMore = filtered.length > filter.limit;
       const items = hasMore ? filtered.slice(0, filter.limit) : filtered;

@@ -18,9 +18,10 @@ export function MediaPlaceholder({
   caption,
   className = '',
 }: MediaPlaceholderProps) {
+  const [revealed, setRevealed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [timestamp, setTimestamp] = useState(-1);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
 
@@ -54,21 +55,26 @@ export function MediaPlaceholder({
     }
   }, [mediaId, timestamp]);
 
-  // Auto-fetch on mount
   useEffect(() => {
-    fetchMedia();
+    if (revealed) {
+      fetchMedia();
+    }
     // Cleanup on unmount
     return () => {
       if (objectUrlRef.current) {
         URL.revokeObjectURL(objectUrlRef.current);
       }
     };
-  }, [fetchMedia]);
+  }, [revealed, fetchMedia]);
 
   const handleClick = () => {
-    // Force reload with new timestamp
-    setTimestamp(Date.now());
-    setError(null);
+    if (!revealed) {
+      setRevealed(true);
+    } else {
+      // Force reload with new timestamp
+      setTimestamp(Date.now());
+      setError(null);
+    }
   };
 
   const getIcon = () => {
@@ -85,6 +91,31 @@ export function MediaPlaceholder({
         return <Image className="h-12 w-12 text-muted-foreground" aria-hidden="true" />;
     }
   };
+
+  if (!revealed) {
+    return (
+      <div
+        onClick={handleClick}
+        className={`relative aspect-square bg-muted/50 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-muted/70 transition-colors ${className}`}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleClick();
+          }
+        }}
+      >
+        {getIcon()}
+        <p className="mt-2 text-sm text-muted-foreground">Tap to view</p>
+        {caption && (
+          <p className="mt-1 text-xs text-muted-foreground text-center px-2 line-clamp-2">
+            {caption}
+          </p>
+        )}
+      </div>
+    );
+  }
 
   if (error) {
     return (
