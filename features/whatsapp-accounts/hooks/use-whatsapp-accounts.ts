@@ -49,6 +49,9 @@ export function useWhatsappAccounts(params: WhatsappAccountListInput) {
     },
     initialPageParam: params.cursor ?? undefined,
     getNextPageParam: (lastPage) => lastPage?.nextCursor ?? undefined,
+    staleTime: 300000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 }
 
