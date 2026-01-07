@@ -123,12 +123,45 @@ export const webhookMessagePayloadSchema = z.object({
       id: z.string(),
       from: z.string(),
       timestamp: z.string(),
+      type: z.string(),
       text: z
         .object({
           body: z.string(),
         })
         .optional(),
-      type: z.string(),
+      image: z
+        .object({
+          mime_type: z.string(),
+          sha256: z.string(),
+          id: z.string(),
+          url: z.string(),
+        })
+        .optional(),
+      video: z
+        .object({
+          mime_type: z.string(),
+          sha256: z.string(),
+          id: z.string(),
+          url: z.string(),
+        })
+        .optional(),
+      audio: z
+        .object({
+          mime_type: z.string(),
+          sha256: z.string(),
+          id: z.string(),
+          url: z.string(),
+        })
+        .optional(),
+      document: z
+        .object({
+          mime_type: z.string(),
+          sha256: z.string(),
+          id: z.string(),
+          url: z.string(),
+          filename: z.string().optional(),
+        })
+        .optional(),
     })
   ),
 });

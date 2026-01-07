@@ -355,20 +355,24 @@ export class WebhookIngestService {
       return;
     }
 
+    const mediaUrl = message.image?.url || message.video?.url || message.audio?.url || message.document?.url || null;
+    const mediaType = message.type === "image" || message.type === "video" || message.type === "audio" || message.type === "document" ? message.type : null;
+    const messageContent = message.text?.body || (mediaType ? `[${mediaType}]` : "[Media]");
+
     await tx
       .insert(conversationsTable)
       .values({
         companyId,
         contactId: contactRecord.id,
         whatsappAccountId,
-        lastMessagePreview: message.text?.body || "[Media]",
+        lastMessagePreview: messageContent,
         lastMessageTime: ts,
         isActive: true,
       })
       .onConflictDoUpdate({
         target: [conversationsTable.companyId, conversationsTable.contactId, conversationsTable.whatsappAccountId],
         set: {
-          lastMessagePreview: message.text?.body || "[Media]",
+          lastMessagePreview: messageContent,
           lastMessageTime: ts,
           updatedAt: sql`now()`,
         },
@@ -396,7 +400,9 @@ export class WebhookIngestService {
       whatsappAccountId,
       direction: "inbound",
       status: "delivered",
-      content: message.text?.body || "[Media]",
+      content: messageContent,
+      mediaUrl,
+      mediaType,
       providerMessageId: message.id,
       isActive: true,
       createdAt: ts,
