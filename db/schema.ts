@@ -242,6 +242,7 @@ export const conversationsTable = pgTable("conversations", {
         .on(table.companyId.asc(), table.lastMessageTime.desc(), table.id.asc()),
 ]);
 
+
 // Messages Table
 export const messagesTable = pgTable("messages", {
     id: serial("id").primaryKey(),
