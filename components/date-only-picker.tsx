@@ -73,6 +73,122 @@ function isValidDate(date: Date | undefined) {
   return !isNaN(date.getTime());
 }
 
+// Controlled DateOnlyPicker component for direct value/onChange usage
+interface ControlledDateOnlyPickerProps {
+  value?: string;
+  onChange: (value: string | undefined) => void;
+  placeholder?: string;
+  disabled?: boolean;
+}
+
+export function ControlledDateOnlyPicker({
+  value,
+  onChange,
+  placeholder = "Select date",
+  disabled = false,
+}: ControlledDateOnlyPickerProps) {
+  const [open, setOpen] = React.useState(false);
+
+  // Convert string value (YYYY-MM-DD) to Date object
+  const dateValue = React.useMemo(() => {
+    return parseDateString(value);
+  }, [value]);
+
+  // Initialize month from date value, or current date if no value
+  const [month, setMonth] = React.useState<Date | undefined>(
+    dateValue || new Date()
+  );
+
+  // Format the date string for display
+  const displayValue = React.useMemo(() => {
+    return formatDateString(value);
+  }, [value]);
+
+  // Handle calendar date selection
+  const handleSelect = (date: Date | undefined) => {
+    if (!date) {
+      onChange(undefined);
+      return;
+    }
+
+    // Convert Date to YYYY-MM-DD string format
+    const dateString = dateToYYYYMMDD(date);
+    onChange(dateString);
+    setOpen(false);
+  };
+
+  // Handle manual input change
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputValue = e.target.value;
+
+    // Try to parse as date string (YYYY-MM-DD) or natural date format
+    if (inputValue) {
+      const parsedDate = new Date(inputValue);
+      if (isValidDate(parsedDate)) {
+        const dateString = dateToYYYYMMDD(parsedDate);
+        onChange(dateString);
+        setMonth(parsedDate);
+      }
+    } else {
+      onChange(undefined);
+    }
+  };
+
+  // Update month when date value changes externally
+  React.useEffect(() => {
+    if (dateValue) {
+      setMonth(dateValue);
+    }
+  }, [dateValue]);
+
+  return (
+    <div className="relative flex gap-2">
+      <Input
+        value={displayValue}
+        placeholder={placeholder}
+        className="bg-background pr-10"
+        onChange={handleInputChange}
+        disabled={disabled}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setOpen(true);
+          }
+        }}
+      />
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            className="absolute top-1/2 right-2 size-6 -translate-y-1/2"
+            disabled={disabled}
+          >
+            <CalendarIcon className="size-3.5" />
+            <span className="sr-only">Select date</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          className="w-auto overflow-hidden p-0"
+          align="end"
+          alignOffset={-8}
+          sideOffset={10}
+        >
+          <Calendar
+            mode="single"
+            selected={dateValue}
+            captionLayout="dropdown"
+            month={month}
+            onMonthChange={setMonth}
+            onSelect={handleSelect}
+            disabled={disabled}
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 // Standalone DateOnlyPicker component (for backwards compatibility)
 export function DateOnlyPicker() {
   const [open, setOpen] = React.useState(false);

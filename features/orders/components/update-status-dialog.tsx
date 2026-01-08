@@ -30,7 +30,6 @@ export function UpdateStatusDialog({ isOpen, onClose, orderId, currentStatus }: 
     },
   });
 
-  console.log(form.formState.errors);
   const handleClose = () => {
     form.reset();
     onClose();

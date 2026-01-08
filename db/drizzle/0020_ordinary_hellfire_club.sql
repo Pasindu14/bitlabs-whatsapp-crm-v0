@@ -1,0 +1,1 @@
+CREATE INDEX "messages_company_account_created_at_idx" ON "messages" USING btree ("company_id","whatsapp_account_id","created_at" DESC NULLS LAST);

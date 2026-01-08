@@ -287,6 +287,10 @@ export const messagesTable = pgTable("messages", {
     // Composite index for cursor pagination
     index("messages_conversation_created_at_id_idx")
         .on(table.conversationId.asc(), table.createdAt.desc(), table.id.asc()),
+
+    // Analytics: composite index for date-range aggregates per account
+    index("messages_company_account_created_at_idx")
+        .on(table.companyId.asc(), table.whatsappAccountId.asc(), table.createdAt.desc()),
 ]);
 
 export const conversationRelations = relations(conversationsTable, ({ one }) => ({
