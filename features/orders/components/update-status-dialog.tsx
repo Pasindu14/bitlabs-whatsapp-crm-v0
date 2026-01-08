@@ -30,6 +30,7 @@ export function UpdateStatusDialog({ isOpen, onClose, orderId, currentStatus }: 
     },
   });
 
+  console.log(form.formState.errors);
   const handleClose = () => {
     form.reset();
     onClose();
@@ -66,7 +67,7 @@ export function UpdateStatusDialog({ isOpen, onClose, orderId, currentStatus }: 
                     <FormLabel>Status *</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger className='w-full'>
                           <SelectValue placeholder="Select status" />
                         </SelectTrigger>
                       </FormControl>

@@ -311,48 +311,7 @@ export function OrdersTable() {
       ) : (
         <DataTable table={table} />
       )}
-      {orders.length > 0 && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">
-            Showing {orders.length} orders
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              disabled={pageIndex === 0}
-              onClick={() => setPageIndex((prev) => Math.max(prev - 1, 0))}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              disabled={!hasMore}
-              onClick={() => setPageIndex((prev) => prev + 1)}
-            >
-              Next
-            </Button>
-            <Select
-              value={`${pageSize}`}
-              onValueChange={(value: string) => {
-                const size = Number(value);
-                setPageSize(size);
-                setPageIndex(0);
-              }}
-            >
-              <SelectTrigger className="h-8 w-20">
-                <SelectValue>{pageSize}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {[10, 20, 30, 40, 50].map((size) => (
-                  <SelectItem key={size} value={`${size}`}>
-                    {size}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      )}
+   
       {selectedOrder && (
         <>
           <UpdateOrderDialog

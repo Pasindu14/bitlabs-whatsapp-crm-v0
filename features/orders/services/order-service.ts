@@ -14,7 +14,7 @@ import type {
   OrderListInput,
   OrderResponse,
   OrderUpdateServerInput,
-  OrderUpdateStatusInput,
+  OrderUpdateStatusServerInput,
   OrderStatus,
 } from "../schemas/order-schema";
 
@@ -164,7 +164,7 @@ export class OrderService {
     }
   }
 
-  static async updateStatus(input: OrderUpdateStatusInput): Promise<Result<OrderResponse>> {
+  static async updateStatus(input: OrderUpdateStatusServerInput): Promise<Result<OrderResponse>> {
     const logger = createPerformanceLogger("OrderService.updateStatus", {
       context: { companyId: input.companyId, orderId: input.orderId, status: input.status },
     });

@@ -54,12 +54,16 @@ export type OrderUpdateServerInput = z.infer<typeof orderUpdateServerSchema>;
 export const orderUpdateStatusSchema = z.object({
   orderId: z.number().int().positive(),
   status: orderStatusSchema,
-}).extend({
+});
+
+export type OrderUpdateStatusInput = z.infer<typeof orderUpdateStatusSchema>;
+
+export const orderUpdateStatusServerSchema = orderUpdateStatusSchema.extend({
   companyId: z.number().int().positive(),
   userId: z.number().int().positive(),
 });
 
-export type OrderUpdateStatusInput = z.infer<typeof orderUpdateStatusSchema>;
+export type OrderUpdateStatusServerInput = z.infer<typeof orderUpdateStatusServerSchema>;
 
 export const orderDeactivateSchema = z.object({
   orderId: z.number().int().positive(),
