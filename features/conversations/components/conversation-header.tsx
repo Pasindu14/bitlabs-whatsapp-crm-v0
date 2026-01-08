@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useConversation } from '../hooks/conversation-hooks';
 import { useUserNoteForConversation } from '../hooks/note-hooks';
 import { useNoteStore } from '../store/note-store';
-import { MoreVertical, Pencil, User, StickyNote, Edit3, Clock } from 'lucide-react';
+import { MoreVertical, Pencil, User, StickyNote, ShoppingCart, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -17,6 +17,7 @@ import {
 import { UpdateContactNameDialog } from './update-contact-name-dialog';
 import { AssignUserDialog } from './assign-user-dialog';
 import { NoteDialog } from './note-dialog';
+import { CreateOrderDialog } from '@/features/orders/components/create-order-dialog';
 import { formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 
@@ -33,6 +34,7 @@ export function ConversationHeader({ conversationId }: ConversationHeaderProps) 
   const displayName = contact?.name || contact?.phone || '';
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
   const [isAssignUserDialogOpen, setIsAssignUserDialogOpen] = useState(false);
+  const [isCreateOrderDialogOpen, setIsCreateOrderDialogOpen] = useState(false);
 
   const currentUserId = session.data?.user?.id ? parseInt(session.data.user.id, 10) : undefined;
   const assignedToUserId = selectedConversation?.assignedToUserId;
@@ -58,6 +60,10 @@ export function ConversationHeader({ conversationId }: ConversationHeaderProps) 
     }
   };
 
+  const handleCreateOrder = () => {
+    setIsCreateOrderDialogOpen(true);
+  };
+
   const lastMessageAt = selectedConversation?.lastMessageTime;
 
   return (
@@ -81,6 +87,10 @@ export function ConversationHeader({ conversationId }: ConversationHeaderProps) 
               <DropdownMenuItem onClick={handleAddNote} className="text-xs">
                 <StickyNote className="mr-2 h-3 w-3" />
                 Add/Edit Note
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleCreateOrder} className="text-xs" disabled={!contact?.id}>
+                <ShoppingCart className="mr-2 h-3 w-3" />
+                Create Order
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleAssignUser} className="text-xs">
@@ -112,6 +122,16 @@ export function ConversationHeader({ conversationId }: ConversationHeaderProps) 
         />
       )}
       <NoteDialog />
+      {contact?.id && (
+        <CreateOrderDialog
+          isOpen={isCreateOrderDialogOpen}
+          onClose={() => setIsCreateOrderDialogOpen(false)}
+          contactId={contact.id}
+          conversationId={conversationId ?? undefined}
+          contactName={contact.name}
+          contactPhone={contact.phone}
+        />
+      )}
     </>
   );
 }

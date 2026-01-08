@@ -68,14 +68,9 @@ export function AssignUserDialog({
 
   const mutation = useMutation({
     mutationFn: async (data: AssignUserForm) => {
-      const companyId = session.data?.user?.companyId;
-      if (!companyId) {
-        throw new Error('Company ID not found');
-      }
       const result = await assignConversationToUserAction({
         conversationId,
         userId: data.userId === 'unassign' ? null : parseInt(data.userId, 10),
-        companyId,
       });
       if (!result.ok) throw new Error(result.error || 'Failed to assign user');
       return result.data;

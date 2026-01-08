@@ -461,3 +461,54 @@ export const fileUploadRelations = relations(fileUploadsTable, ({ one }) => ({
   }),
 }));
 
+const ORDER_STATUSES = ["draft", "pending", "confirmed", "shipped", "delivered", "cancelled"] as const;
+
+export const ordersTable = pgTable("orders", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companiesTable.id).notNull(),
+  contactId: integer("contact_id").references(() => contactsTable.id).notNull(),
+  conversationId: integer("conversation_id").references(() => conversationsTable.id),
+  createdBy: integer("created_by").references(() => usersTable.id).notNull(),
+  updatedBy: integer("updated_by").references(() => usersTable.id),
+  contactNameSnapshot: text("contact_name_snapshot").notNull(),
+  contactPhoneSnapshot: text("contact_phone_snapshot").notNull(),
+  customerName: text("customer_name").notNull(),
+  customerPhone: text("customer_phone").notNull(),
+  deliveryAddress: text("delivery_address").notNull(),
+  orderDescription: text("order_description").notNull(),
+  status: text("status", { enum: ORDER_STATUSES }).notNull().default("draft"),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
+}, (table) => [
+  index("orders_company_created_id_idx").on(table.companyId.asc(), table.createdAt.desc(), table.id.desc()),
+  index("orders_company_status_id_idx").on(table.companyId.asc(), table.status.asc(), table.id.desc()),
+  index("orders_company_contact_id_idx").on(table.companyId.asc(), table.contactId.asc(), table.id.desc()),
+  index("orders_company_conversation_id_idx").on(table.companyId.asc(), table.conversationId.asc(), table.id.desc()),
+  index("orders_company_active_idx").on(table.companyId.asc(), table.isActive.asc()),
+]);
+
+export const orderRelations = relations(ordersTable, ({ one }) => ({
+  company: one(companiesTable, {
+    fields: [ordersTable.companyId],
+    references: [companiesTable.id],
+  }),
+  contact: one(contactsTable, {
+    fields: [ordersTable.contactId],
+    references: [contactsTable.id],
+  }),
+  conversation: one(conversationsTable, {
+    fields: [ordersTable.conversationId],
+    references: [conversationsTable.id],
+  }),
+  creator: one(usersTable, {
+    fields: [ordersTable.createdBy],
+    references: [usersTable.id],
+  }),
+  updater: one(usersTable, {
+    fields: [ordersTable.updatedBy],
+    references: [usersTable.id],
+  }),
+}));
+

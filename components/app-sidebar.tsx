@@ -3,7 +3,7 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Building2, MessageCircle, User } from "lucide-react";
+import { Building2, MessageCircle, ShoppingCart, User } from "lucide-react";
 
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
@@ -27,6 +27,11 @@ const navMainData = [
     title: "User Management",
     url: "/users",
     icon: User,
+  },
+  {
+    title: "Orders",
+    url: "/orders",
+    icon: ShoppingCart,
   },
   {
     title: "WhatsApp Account Management",

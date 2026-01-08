@@ -134,6 +134,13 @@
       "when": 1767780001358,
       "tag": "0018_perfect_dazzler",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1767860416721,
+      "tag": "0019_salty_titania",
+      "breakpoints": true
     }
   ]
 }
