@@ -140,6 +140,7 @@ export class MessageService {
           `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/conversations/send-message`,
           requestBody,
           {
+            timeout: 30000,
             headers: {
               'Content-Type': 'application/json',
             },
@@ -229,7 +230,10 @@ export class MessageService {
     try {
       // Fetch the failed message directly from DB
       const message = await db.query.messagesTable.findFirst({
-        where: eq(messagesTable.id, messageId),
+        where: and(
+          eq(messagesTable.id, messageId),
+          eq(messagesTable.companyId, companyId)
+        ),
       });
 
       if (!message) {
@@ -239,7 +243,10 @@ export class MessageService {
 
       // Fetch contact to get phone number
       const contact = await db.query.contactsTable.findFirst({
-        where: eq(contactsTable.id, message.contactId),
+        where: and(
+          eq(contactsTable.id, message.contactId),
+          eq(contactsTable.companyId, companyId)
+        ),
       });
 
       if (!contact) {

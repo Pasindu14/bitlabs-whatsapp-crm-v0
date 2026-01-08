@@ -4,6 +4,7 @@ import { eq, and, desc, lt, or, isNull, sql } from 'drizzle-orm';
 import { createPerformanceLogger } from '@/lib/logger';
 import { Result } from '@/lib/result';
 import { AuditLogService } from '@/lib/audit-log.service';
+import axios from 'axios';
 import type {
   ContactResponse,
   ConversationResponse,
@@ -58,7 +59,18 @@ export class ConversationService {
           updatedAt: new Date(),
         })
         .where(and(eq(contactsTable.id, contactId), eq(contactsTable.companyId, companyId)))
-        .returning();
+        .returning({
+          id: contactsTable.id,
+          companyId: contactsTable.companyId,
+          phone: contactsTable.phone,
+          name: contactsTable.name,
+          avatar: contactsTable.avatar,
+          isGroup: contactsTable.isGroup,
+          presence: contactsTable.presence,
+          createdAt: contactsTable.createdAt,
+          updatedAt: contactsTable.updatedAt,
+          isActive: contactsTable.isActive,
+        });
 
       if (!updated) {
         logger.fail(new Error('Contact not found'));
@@ -121,7 +133,18 @@ export class ConversationService {
           isGroup: false,
           isActive: true,
         })
-        .returning();
+        .returning({
+          id: contactsTable.id,
+          companyId: contactsTable.companyId,
+          phone: contactsTable.phone,
+          name: contactsTable.name,
+          avatar: contactsTable.avatar,
+          isGroup: contactsTable.isGroup,
+          presence: contactsTable.presence,
+          createdAt: contactsTable.createdAt,
+          updatedAt: contactsTable.updatedAt,
+          isActive: contactsTable.isActive,
+        });
 
       await AuditLogService.log({
         companyId,
@@ -870,23 +893,24 @@ export class ConversationService {
       if (before) queryParams.append('before', before);
       if (after) queryParams.append('after', after);
 
-      const response = await fetch(
-        `http://localhost:3000/api/conversations/get-message-history?${queryParams.toString()}`,
+      const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/conversations/get-message-history?${queryParams.toString()}`,
         {
-          method: 'GET',
+          timeout: 30000,
+          headers: {
+            'Content-Type': 'application/json',
+          },
         }
       );
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData?.error || `HTTP ${response.status}`;
+      if (response.data.success !== undefined && !response.data.success) {
+        const errorMessage = response.data.error || 'Failed to fetch message history';
         logger.fail(new Error(errorMessage));
         return Result.fail(errorMessage);
       }
 
-      const data = await response.json();
       logger.complete();
-      return Result.ok(data, 'WhatsApp message history loaded');
+      return Result.ok(response.data, 'WhatsApp message history loaded');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Operation failed";
       logger.fail(error as Error);

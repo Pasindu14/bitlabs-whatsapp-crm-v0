@@ -98,21 +98,27 @@ export const conversationFilterSchema = z.object({
 export type ConversationListFilter = z.infer<typeof conversationFilterSchema>;
 
 // Assign conversation schema
-export const assignConversationSchema = z.object({
+export const assignConversationClientSchema = z.object({
   conversationId: z.number().int().positive(),
   userId: z.number().int().positive().nullable(),
-  companyId: z.number().int().positive(),
 });
 
-export type AssignConversationInput = z.infer<typeof assignConversationSchema>;
+export type AssignConversationInput = z.infer<typeof assignConversationClientSchema>;
+
+export const assignConversationServerSchema = assignConversationClientSchema.extend({
+  companyId: z.number().int().positive(),
+});
 
 // Mark as read schema
-export const markAsReadSchema = z.object({
+export const markAsReadClientSchema = z.object({
   conversationId: z.number().int().positive(),
-  companyId: z.number().int().positive(),
 });
 
-export type MarkAsReadInput = z.infer<typeof markAsReadSchema>;
+export type MarkAsReadInput = z.infer<typeof markAsReadClientSchema>;
+
+export const markAsReadServerSchema = markAsReadClientSchema.extend({
+  companyId: z.number().int().positive(),
+});
 
 // Get messages schema
 export const getMessagesSchema = z.object({
@@ -139,28 +145,37 @@ export const updateContactNameSchema = z.object({
 export type UpdateContactNameInput = z.infer<typeof updateContactNameSchema>;
 
 // Clear conversation schema
-export const clearConversationSchema = z.object({
+export const clearConversationClientSchema = z.object({
   conversationId: z.number().int().positive(),
-  companyId: z.number().int().positive(),
 });
 
-export type ClearConversationInput = z.infer<typeof clearConversationSchema>;
+export type ClearConversationInput = z.infer<typeof clearConversationClientSchema>;
+
+export const clearConversationServerSchema = clearConversationClientSchema.extend({
+  companyId: z.number().int().positive(),
+});
 
 // Delete conversation schema
-export const deleteConversationSchema = z.object({
+export const deleteConversationClientSchema = z.object({
   conversationId: z.number().int().positive(),
-  companyId: z.number().int().positive(),
 });
 
-export type DeleteConversationInput = z.infer<typeof deleteConversationSchema>;
+export type DeleteConversationInput = z.infer<typeof deleteConversationClientSchema>;
+
+export const deleteConversationServerSchema = deleteConversationClientSchema.extend({
+  companyId: z.number().int().positive(),
+});
 
 // Archive conversation schema
-export const archiveConversationSchema = z.object({
+export const archiveConversationClientSchema = z.object({
   conversationId: z.number().int().positive(),
-  companyId: z.number().int().positive(),
 });
 
-export type ArchiveConversationInput = z.infer<typeof archiveConversationSchema>;
+export type ArchiveConversationInput = z.infer<typeof archiveConversationClientSchema>;
+
+export const archiveConversationServerSchema = archiveConversationClientSchema.extend({
+  companyId: z.number().int().positive(),
+});
 
 // Response schemas
 export const contactResponseSchema = z.object({

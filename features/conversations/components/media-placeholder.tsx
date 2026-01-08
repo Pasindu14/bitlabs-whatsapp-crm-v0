@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Image, Video, FileAudio, FileText, RefreshCw } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 import axios from 'axios';
@@ -96,7 +96,7 @@ export function MediaPlaceholder({
     return (
       <div
         onClick={handleClick}
-        className={`relative aspect-square bg-muted/50 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-muted/70 transition-colors ${className}`}
+        className={`group relative aspect-square bg-gradient-to-br from-muted/60 via-muted/40 to-muted/80 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:shadow-muted/20 border border-border/50 hover:border-border p-1 ${className}`}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
@@ -106,13 +106,36 @@ export function MediaPlaceholder({
           }
         }}
       >
-        {getIcon()}
-        <p className="mt-2 text-sm text-muted-foreground">Tap to view</p>
-        {caption && (
-          <p className="mt-1 text-xs text-muted-foreground text-center px-2 line-clamp-2">
-            {caption}
+        {/* Subtle background pattern */}
+        <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-transparent via-background/5 to-transparent opacity-50" />
+
+        {/* Animated icon with glow effect */}
+        <div className="relative mb-3">
+          <div className="absolute inset-0 rounded-full bg-gradient-to-r from-primary/20 to-primary/10 blur-xl scale-150 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          <div className="relative p-3 rounded-full bg-gradient-to-br from-background/80 to-background/60 backdrop-blur-sm border border-border/30 group-hover:border-primary/30 transition-all duration-300 group-hover:shadow-md group-hover:shadow-primary/10">
+            {React.cloneElement(getIcon(), {
+              className: "h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors duration-300 drop-shadow-sm"
+            })}
+          </div>
+        </div>
+
+        {/* Enhanced text with better typography */}
+        <div className="text-center px-3">
+          <p className="text-sm font-medium text-muted-foreground group-hover:text-primary transition-colors duration-300 leading-tight">
+            View
           </p>
-        )}
+          {caption && (
+            <p className="mt-2 text-xs text-muted-foreground/80 group-hover:text-muted-foreground transition-colors duration-300 text-center px-2 line-clamp-2 leading-relaxed">
+              {caption}
+            </p>
+          )}
+        </div>
+
+        {/* Subtle corner accent */}
+        <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-gradient-to-r from-primary to-primary/70 opacity-60 group-hover:opacity-100 transition-opacity duration-300" />
+
+        {/* Hover ripple effect */}
+        <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary/5 via-transparent to-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
       </div>
     );
   }

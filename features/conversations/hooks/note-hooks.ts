@@ -87,6 +87,7 @@ export function useCreateConversationNote() {
         queryKey: noteKeys.userNote(input.conversationId),
       });
     },
+    retry: false,
   });
 }
 
@@ -111,6 +112,7 @@ export function useUpdateConversationNote() {
         queryKey: noteKeys.userNote(data.conversationId),
       });
     },
+    retry: false,
   });
 }
 
@@ -136,5 +138,6 @@ export function useDeleteConversationNote() {
         queryKey: noteKeys.userNote(variables.conversationId),
       });
     },
+    retry: false,
   });
 }

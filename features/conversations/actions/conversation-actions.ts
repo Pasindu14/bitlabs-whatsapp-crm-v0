@@ -5,14 +5,14 @@ import { Result } from '@/lib/result';
 import { ConversationService } from '../services/conversation-service';
 import {
   conversationFilterSchema,
-  markAsReadSchema,
+  markAsReadClientSchema,
   getMessagesSchema,
   getConversationSchema,
   updateContactNameSchema,
-  clearConversationSchema,
-  deleteConversationSchema,
-  archiveConversationSchema,
-  assignConversationSchema,
+  clearConversationClientSchema,
+  deleteConversationClientSchema,
+  archiveConversationClientSchema,
+  assignConversationClientSchema,
   conversationListOutputSchema,
   messageListOutputSchema,
   getWhatsAppMessageHistorySchema,
@@ -98,7 +98,7 @@ export const markConversationAsReadAction = withAction<MarkAsReadInput, void>(
       auth.companyId
     );
   },
-  { schema: markAsReadSchema }
+  { schema: markAsReadClientSchema }
 );
 
 export const assignConversationToUserAction = withAction<AssignConversationInput, void>(
@@ -110,7 +110,7 @@ export const assignConversationToUserAction = withAction<AssignConversationInput
       input.userId
     );
   },
-  { schema: assignConversationSchema }
+  { schema: assignConversationClientSchema }
 );
 
 export const clearConversationAction = withAction<ClearConversationInput, void>(
@@ -121,7 +121,7 @@ export const clearConversationAction = withAction<ClearConversationInput, void>(
       auth.companyId
     );
   },
-  { schema: clearConversationSchema }
+  { schema: clearConversationClientSchema }
 );
 
 export const deleteConversationAction = withAction<DeleteConversationInput, void>(
@@ -132,7 +132,7 @@ export const deleteConversationAction = withAction<DeleteConversationInput, void
       auth.companyId
     );
   },
-  { schema: deleteConversationSchema }
+  { schema: deleteConversationClientSchema }
 );
 
 export const archiveConversationAction = withAction<ArchiveConversationInput, void>(
@@ -143,7 +143,7 @@ export const archiveConversationAction = withAction<ArchiveConversationInput, vo
       auth.companyId
     );
   },
-  { schema: archiveConversationSchema }
+  { schema: archiveConversationClientSchema }
 );
 
 export const unarchiveConversationAction = withAction<ArchiveConversationInput, void>(
@@ -154,7 +154,7 @@ export const unarchiveConversationAction = withAction<ArchiveConversationInput, 
       auth.companyId
     );
   },
-  { schema: archiveConversationSchema }
+  { schema: archiveConversationClientSchema }
 );
 
 export const getWhatsAppMessageHistoryAction = withAction<GetWhatsAppMessageHistoryInput, unknown>(
