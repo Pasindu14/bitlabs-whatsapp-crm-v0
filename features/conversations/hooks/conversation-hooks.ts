@@ -76,9 +76,10 @@ export function useConversationMessages(conversationId: number) {
     },
     getNextPageParam: (lastPage) => (lastPage?.hasMore ? lastPage.previousCursor : undefined),
     initialPageParam: undefined as string | undefined,
-    staleTime: 5000,
-    refetchOnWindowFocus: true,
-    refetchInterval: 5000,
+    staleTime: Infinity,
+    gcTime: 600000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 }
 
@@ -109,7 +110,37 @@ export function useSendNewMessage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: conversationKeys.lists() });
       if (data?.success && data.conversationId) {
-        queryClient.invalidateQueries({ queryKey: messageKeys.list(data.conversationId) });
+        queryClient.setQueryData(messageKeys.list(data.conversationId), (old: any) => {
+          if (!old) return old;
+          const newMessage = {
+            ...data.message,
+            conversationId: data.conversationId,
+            companyId: 0,
+            contactId: data.contactId,
+            direction: 'outbound' as const,
+            mediaUrl: null,
+            mediaType: null,
+            mediaId: null,
+            mediaMimeType: null,
+            mediaCaption: null,
+            providerMessageId: null,
+            providerStatus: null,
+            errorCode: null,
+            errorMessage: null,
+            updatedAt: null,
+            isActive: true,
+          };
+          return {
+            pages: [
+              {
+                messages: [...(old.pages[0]?.messages || []), newMessage],
+                previousCursor: undefined,
+                hasMore: old.pages[0]?.hasMore || false,
+              },
+            ],
+            pageParams: [undefined],
+          };
+        });
       }
     },
     retry: false,
