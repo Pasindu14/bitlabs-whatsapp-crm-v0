@@ -18,7 +18,7 @@ import { UpdateContactNameDialog } from './update-contact-name-dialog';
 import { AssignUserDialog } from './assign-user-dialog';
 import { NoteDialog } from './note-dialog';
 import { CreateOrderDialog } from '@/features/orders/components/create-order-dialog';
-import { formatDistanceToNow } from 'date-fns';
+import { differenceInHours, differenceInMinutes, formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 
 interface ConversationHeaderProps {
@@ -65,6 +65,9 @@ export function ConversationHeader({ conversationId }: ConversationHeaderProps) 
   };
 
   const lastMessageAt = selectedConversation?.lastMessageTime;
+  const isOldConversation = lastMessageAt ? differenceInHours(new Date(), new Date(lastMessageAt)) >= 23 : false;
+
+ 
 
   return (
     <>
@@ -73,7 +76,7 @@ export function ConversationHeader({ conversationId }: ConversationHeaderProps) 
         <div className="flex items-center gap-2">
          <span className="text-xs text-muted-foreground"> <Clock className="mr-2 h-3 w-3" /></span>
           {lastMessageAt && (
-            <Badge className="text-xs text-muted-foreground bg-muted">
+            <Badge className={`text-xs ${isOldConversation ? 'bg-red-100 text-red-700 border-red-300' : 'text-muted-foreground bg-muted'}`}>
               {formatDistanceToNow(new Date(lastMessageAt), { addSuffix: true })}
             </Badge>
           )}

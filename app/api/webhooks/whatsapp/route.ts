@@ -34,8 +34,6 @@ export async function POST(request: NextRequest) {
     const signature = request.headers.get("x-hub-signature-256");
     const rawBody = await request.text();
 
-    console.log("WEBHOOK RECEIVED", rawBody);
-
     if (!rawBody) {
       return NextResponse.json({ error: "Empty body" }, { status: 400 });
     }

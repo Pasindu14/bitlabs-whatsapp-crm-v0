@@ -2,6 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { ArrowLeft } from 'lucide-react';
+import { differenceInHours } from 'date-fns';
 import { ConversationList } from '@/features/conversations/components/conversation-list';
 import { MessageList } from '@/features/conversations/components/message-list';
 import { ConversationHeader } from '@/features/conversations/components/conversation-header';
@@ -34,6 +35,10 @@ export default function ConversationsPage() {
 
   const currentUserId = session.data?.user?.id ? parseInt(session.data.user.id, 10) : undefined;
 
+  const isOldConversation = selectedConversation?.lastMessageTime
+    ? differenceInHours(new Date(), new Date(selectedConversation.lastMessageTime)) >= 24
+    : false;
+
   useConversations({
     filterType,
     searchTerm,
@@ -44,7 +49,7 @@ export default function ConversationsPage() {
   });
 
 
-  const handleSendMessage = async (messageText: string, imageUrl?: string, imageKey?: string) => {
+  const handleSendMessage = async (messageText: string, imageUrl?: string, imageKey?: string, audioUrl?: string, audioKey?: string) => {
     if (!selectedConversationId) {
       toast.error('Please select a conversation first');
       return;
@@ -56,7 +61,7 @@ export default function ConversationsPage() {
     }
 
     try {
-      const payload: { phoneNumber: string; messageText?: string; imageUrl?: string; imageKey?: string } = {
+      const payload: { phoneNumber: string; messageText?: string; imageUrl?: string; imageKey?: string; audioUrl?: string; audioKey?: string } = {
         phoneNumber: selectedConversation.contact.phone,
       };
       
@@ -67,6 +72,11 @@ export default function ConversationsPage() {
       if (imageUrl) {
         payload.imageUrl = imageUrl;
         payload.imageKey = imageKey;
+      }
+      
+      if (audioUrl) {
+        payload.audioUrl = audioUrl;
+        payload.audioKey = audioKey;
       }
       
       await sendNewMessage(payload);
@@ -143,6 +153,7 @@ export default function ConversationsPage() {
               onSend={handleSendMessage}
               isLoading={isSending}
               conversationId={selectedConversationId}
+              disabled={isOldConversation}
             />
           </>
         ) : (

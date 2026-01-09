@@ -1,7 +1,11 @@
 export interface SendTextMessageRequest {
   companyId: number;
   recipientPhoneNumber: string;
-  text: string;
+  phoneNumberId: string;
+  accessToken: string;
+  type: 'text' | 'image' | 'audio';
+  text?: string;
+  mediaUrl?: string;
 }
 
 export interface SendTextMessageResponse {

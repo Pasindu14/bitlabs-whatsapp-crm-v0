@@ -10,7 +10,7 @@ export type MessageStatus = (typeof MESSAGE_STATUSES)[number];
 export const MESSAGE_DIRECTIONS = ['inbound', 'outbound'] as const;
 export type MessageDirection = (typeof MESSAGE_DIRECTIONS)[number];
 
-export const FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+export const FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'audio/mpeg', 'audio/mp4', 'audio/webm', 'audio/ogg'] as const;
 export type FileType = (typeof FILE_TYPES)[number];
 
 // Phone number validation and normalization
@@ -38,8 +38,8 @@ export type SendNewMessageInput = z.infer<typeof sendNewMessageClientSchema>;
 // File upload schema
 export const fileUploadClientSchema = z.object({
   file: z.instanceof(File)
-    .refine((f) => f.size <= 4 * 1024 * 1024, 'File size must be less than 4MB')
-    .refine((f) => FILE_TYPES.includes(f.type as FileType), 'Invalid file type. Supported: JPEG, PNG, WEBP'),
+    .refine((f) => f.size <= 16 * 1024 * 1024, 'File size must be less than 16MB')
+    .refine((f) => FILE_TYPES.includes(f.type as FileType), 'Invalid file type. Supported: Images (JPEG, PNG, WEBP), Audio (MP3, M4A, WebM, OGG)'),
 });
 
 export type FileUploadInput = z.infer<typeof fileUploadClientSchema>;
@@ -50,9 +50,11 @@ export const sendMessageWithImageClientSchema = z.object({
   messageText: messageTextSchema.optional(),
   imageUrl: z.string().url().optional(),
   imageKey: z.string().min(1).optional(),
+  audioUrl: z.string().url().optional(),
+  audioKey: z.string().min(1).optional(),
 }).refine(
-  (data) => data.messageText || data.imageUrl,
-  'Either messageText or imageUrl is required'
+  (data) => data.messageText || data.imageUrl || data.audioUrl,
+  'Either messageText, imageUrl, or audioUrl is required'
 );
 
 export type SendMessageWithImageInput = z.infer<typeof sendMessageWithImageClientSchema>;
@@ -278,6 +280,8 @@ export const sendNewMessageOutputSchema = z.union([
       id: z.number().int(),
       status: z.enum(['sending', 'sent']),
       content: z.string(),
+      mediaUrl: z.string().url().nullable(),
+      mediaType: z.string().nullable(),
       createdAt: z.date(),
     }),
   }),
@@ -324,3 +328,11 @@ export const getWhatsAppMessageHistorySchema = z.object({
 });
 
 export type GetWhatsAppMessageHistoryInput = z.infer<typeof getWhatsAppMessageHistorySchema>;
+
+export const audioRecordingMetadataSchema = z.object({
+  duration: z.number().int().positive().max(300, 'Recording too long (max 5 minutes)'),
+  mimeType: z.enum(['audio/mpeg', 'audio/mp4', 'audio/webm', 'audio/ogg']),
+  size: z.number().int().positive().max(16 * 1024 * 1024, 'File too large (max 16MB)'),
+});
+
+export type AudioRecordingMetadata = z.infer<typeof audioRecordingMetadataSchema>;

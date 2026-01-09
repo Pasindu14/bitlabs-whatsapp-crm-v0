@@ -14,15 +14,17 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useConversationStore } from '../store/conversation-store';
-import { Plus, Send, X, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Plus, Send, X, Loader2, Image as ImageIcon, Mic } from 'lucide-react';
 import { ImageAttachmentPopover } from './image-attachment-popover';
+import { AudioRecorder } from './audio-recorder';
+import { AudioPreview } from './audio-preview';
 import { generateReactHelpers } from '@uploadthing/react';
 import type { OurFileRouter } from '@/app/api/uploadthing/core';
-import { uploadImageAction } from '../actions/message-actions';
+import { uploadMediaAction } from '../actions/message-actions';
 import { toast } from 'sonner';
 
 interface MessageInputProps {
-  onSend: (message: string, imageUrl?: string, imageKey?: string) => void;
+  onSend: (message: string, imageUrl?: string, imageKey?: string, audioUrl?: string, audioKey?: string) => void;
   isLoading?: boolean;
   disabled?: boolean;
   conversationId: number;
@@ -30,13 +32,18 @@ interface MessageInputProps {
 
 const { useUploadThing } = generateReactHelpers<OurFileRouter>();
 
+const normalizeMimeType = (mimeType: string): string => {
+  return mimeType.split(';')[0].trim();
+};
+
 export function MessageInput({ onSend, isLoading = false, disabled = false, conversationId }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const { selectedImage, clearSelectedImage } = useConversationStore();
+  const [isRecording, setIsRecording] = useState(false);
+  const { selectedImage, clearSelectedImage, audioRecording, setAudioRecording, clearAudioRecording } = useConversationStore();
 
-  const { startUpload } = useUploadThing('imageUploader', {
+  const { startUpload: startImageUpload } = useUploadThing('imageUploader', {
     onClientUploadComplete: async (uploaded) => {
       const uploadedFile = uploaded?.[0];
       if (!uploadedFile) {
@@ -45,7 +52,7 @@ export function MessageInput({ onSend, isLoading = false, disabled = false, conv
         return;
       }
 
-      const result = await uploadImageAction({
+      const result = await uploadMediaAction({
         fileKey: uploadedFile.key,
         fileUrl: uploadedFile.url,
         fileName: uploadedFile.name,
@@ -71,10 +78,50 @@ export function MessageInput({ onSend, isLoading = false, disabled = false, conv
     },
   });
 
+  const { startUpload: startAudioUpload } = useUploadThing('audioUploader', {
+    onClientUploadComplete: async (uploaded) => {
+      const uploadedFile = uploaded?.[0];
+      if (!uploadedFile) {
+        toast.error('Upload failed');
+        setIsUploading(false);
+        return;
+      }
+
+      const result = await uploadMediaAction({
+        fileKey: uploadedFile.key,
+        fileUrl: uploadedFile.url,
+        fileName: uploadedFile.name,
+        fileSize: uploadedFile.size,
+        fileType: uploadedFile.type,
+        conversationId,
+      });
+
+      setIsUploading(false);
+
+      if (result.ok) {
+        onSend(message, undefined, undefined, uploadedFile.url, uploadedFile.key);
+        setMessage('');
+        clearAudioRecording();
+        toast.success('Audio message sent');
+      } else {
+        toast.error(result.error || 'Failed to upload audio');
+      }
+    },
+    onUploadError: (error) => {
+      toast.error(error.message || 'Upload failed');
+      setIsUploading(false);
+    },
+  });
+
   const handleSend = async () => {
     if (selectedImage?.file) {
       setIsUploading(true);
-      await startUpload([selectedImage.file]);
+      await startImageUpload([selectedImage.file]);
+    } else if (audioRecording?.blob) {
+      setIsUploading(true);
+      const normalizedMimeType = normalizeMimeType(audioRecording.mimeType);
+      const extension = normalizedMimeType.split('/')[1];
+      await startAudioUpload([new File([audioRecording.blob], `audio-${Date.now()}.${extension}`, { type: normalizedMimeType })]);
     } else if (message.trim()) {
       onSend(message);
       setMessage('');
@@ -93,6 +140,28 @@ export function MessageInput({ onSend, isLoading = false, disabled = false, conv
 
   const handleImageUploaded = () => {
     setIsPopoverOpen(false);
+  };
+
+  const handleRecordingStart = () => {
+    setIsRecording(true);
+  };
+
+  const handleRecordingStop = (blob: Blob, duration: number, mimeType: string) => {
+    setIsRecording(false);
+    setAudioRecording({ blob, duration, mimeType });
+  };
+
+  const handleRecordingCancel = () => {
+    setIsRecording(false);
+  };
+
+  const handleDeleteAudio = () => {
+    clearAudioRecording();
+  };
+
+  const handleRerecord = () => {
+    clearAudioRecording();
+    setIsRecording(true);
   };
 
   return (
@@ -124,13 +193,30 @@ export function MessageInput({ onSend, isLoading = false, disabled = false, conv
         </div>
       )}
 
+      {audioRecording && !isRecording && (
+        <AudioPreview
+          blob={audioRecording.blob}
+          duration={audioRecording.duration}
+          onDelete={handleDeleteAudio}
+          onRerecord={handleRerecord}
+        />
+      )}
+
+      {isRecording && (
+        <AudioRecorder
+          onStart={handleRecordingStart}
+          onStop={handleRecordingStop}
+          onCancel={handleRecordingCancel}
+        />
+      )}
+
       <div className="flex gap-2 items-center justify-center">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               size="icon"
               variant="ghost"
-              disabled={disabled || isLoading}
+              disabled={disabled || isLoading || isRecording}
               title="Attach"
               className="border"
             >
@@ -141,13 +227,20 @@ export function MessageInput({ onSend, isLoading = false, disabled = false, conv
             <DropdownMenuLabel>Attach</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onSelect={(e) => {
-                e.preventDefault();
+              onSelect={() => {
                 setIsPopoverOpen(true);
               }}
             >
               <ImageIcon className="h-4 w-4 mr-2" />
               Photos & videos
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                setIsRecording(true);
+              }}
+            >
+              <Mic className="h-4 w-4 mr-2" />
+              Audio
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -169,14 +262,14 @@ export function MessageInput({ onSend, isLoading = false, disabled = false, conv
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={disabled || isLoading}
+          disabled={disabled || isLoading || isRecording}
           className="min-h-[40px] max-h-[120px] resize-none"
         />
 
         <Button
           size="icon"
           onClick={handleSend}
-          disabled={disabled || isLoading || isUploading || (!message.trim() && !selectedImage?.file)}
+          disabled={disabled || isLoading || isUploading || (!message.trim() && !selectedImage?.file && !audioRecording?.blob)}
         >
           {isLoading || isUploading ? (
             <Loader2 className="h-5 w-5 animate-spin" />

@@ -9,6 +9,12 @@ interface SelectedImage {
   uploadKey?: string;
 }
 
+interface AudioRecording {
+  blob: Blob;
+  duration: number;
+  mimeType: string;
+}
+
 interface ConversationStoreState {
   selectedConversationId: number | null;
   setSelectedConversation: (id: number | null) => void;
@@ -33,6 +39,10 @@ interface ConversationStoreState {
   setSelectedImage: (image: File | null) => void;
   clearSelectedImage: () => void;
   setUploadedImage: (url: string, key: string) => void;
+
+  audioRecording: AudioRecording | null;
+  setAudioRecording: (recording: AudioRecording | null) => void;
+  clearAudioRecording: () => void;
 }
 
 export const useConversationStore = create<ConversationStoreState>()(
@@ -72,6 +82,10 @@ export const useConversationStore = create<ConversationStoreState>()(
           uploadKey: key,
         } : null,
       })),
+
+      audioRecording: null,
+      setAudioRecording: (recording) => set({ audioRecording: recording }),
+      clearAudioRecording: () => set({ audioRecording: null }),
     }),
     {
       name: 'conversation-store',

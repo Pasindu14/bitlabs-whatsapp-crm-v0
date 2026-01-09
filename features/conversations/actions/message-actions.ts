@@ -50,8 +50,8 @@ export const retryFailedMessageAction = withAction<number, SendNewMessageOutput>
   { schema: z.number().int().positive() }
 );
 
-export const uploadImageAction = withAction(
-  'conversations.uploadImage',
+export const uploadMediaAction = withAction(
+  'conversations.uploadMedia',
   async (auth, input: { fileKey: string; fileUrl: string; fileName: string; fileSize: number; fileType: string; conversationId: number }) => {
     const result = await UploadThingService.saveFileUpload(
       input.fileKey,
@@ -66,6 +66,6 @@ export const uploadImageAction = withAction(
     if (!result.success) return result;
 
     const validated = fileUploadResponseSchema.parse(result.data);
-    return Result.ok(validated, 'Image uploaded successfully');
+    return Result.ok(validated, 'File uploaded successfully');
   }
 );

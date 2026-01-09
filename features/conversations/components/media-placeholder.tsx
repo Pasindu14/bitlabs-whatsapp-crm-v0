@@ -218,7 +218,11 @@ export function MediaPlaceholder({
           <audio
             src={mediaUrl}
             controls
-            className="w-full"
+            className="w-full rounded-lg"
+            style={{
+              filter: 'brightness(0.95) contrast(1.1)',
+              borderRadius: '0.5rem',
+            }}
           />
         )}
       </div>

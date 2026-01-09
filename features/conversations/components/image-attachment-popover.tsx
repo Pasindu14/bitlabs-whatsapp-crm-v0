@@ -4,7 +4,6 @@ import { useState, useRef } from 'react';
 import { Upload, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { uploadImageAction } from '../actions/message-actions';
 import { generateReactHelpers } from '@uploadthing/react';
 import type { OurFileRouter } from '@/app/api/uploadthing/core';
 import { useConversationStore } from '../store/conversation-store';

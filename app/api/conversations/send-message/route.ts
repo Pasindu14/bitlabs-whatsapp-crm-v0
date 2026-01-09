@@ -13,7 +13,7 @@ import type { SendTextMessageRequest, SendTextMessageResponse } from "../types";
  *   recipientPhoneNumber: string;
  *   phoneNumberId: string;
  *   accessToken: string;
- *   type: "text" | "image";
+ *   type: "text" | "image" | "audio";
  *   text?: string;
  *   mediaUrl?: string;
  * }
@@ -37,7 +37,7 @@ export async function POST(
     const { companyId, recipientPhoneNumber, phoneNumberId, accessToken, type, text, mediaUrl } = body as SendTextMessageRequest & { 
       phoneNumberId?: string; 
       accessToken?: string;
-      type?: 'text' | 'image';
+      type?: 'text' | 'image' | 'audio';
       text?: string;
       mediaUrl?: string;
     };
@@ -70,9 +70,9 @@ export async function POST(
       );
     }
 
-    if (!type || (type !== "text" && type !== "image")) {
+    if (!type || (type !== "text" && type !== "image" && type !== "audio")) {
       return NextResponse.json(
-        { success: false, error: "Missing or invalid type (must be 'text' or 'image')" },
+        { success: false, error: "Missing or invalid type (must be 'text', 'image', or 'audio')" },
         { status: 400 }
       );
     }
@@ -87,6 +87,13 @@ export async function POST(
     if (type === "image" && (!mediaUrl || typeof mediaUrl !== "string")) {
       return NextResponse.json(
         { success: false, error: "Missing or invalid mediaUrl for image message" },
+        { status: 400 }
+      );
+    }
+
+    if (type === "audio" && (!mediaUrl || typeof mediaUrl !== "string")) {
+      return NextResponse.json(
+        { success: false, error: "Missing or invalid mediaUrl for audio message" },
         { status: 400 }
       );
     }
@@ -120,16 +127,24 @@ export async function POST(
       type: "image";
       image: { link: string; caption?: string };
     }
+
+    interface WhatsAppAudioPayload {
+      messaging_product: "whatsapp";
+      recipient_type: "individual";
+      to: string;
+      type: "audio";
+      audio: { link: string };
+    }
     
-    const payload: WhatsAppTextPayload | WhatsAppImagePayload = {
+    const payload: WhatsAppTextPayload | WhatsAppImagePayload | WhatsAppAudioPayload = {
       messaging_product: "whatsapp",
       recipient_type: "individual",
       to: recipientPhoneNumber.replace("+", ""),
       type: type,
-    } as WhatsAppTextPayload | WhatsAppImagePayload;
+    } as WhatsAppTextPayload | WhatsAppImagePayload | WhatsAppAudioPayload;
 
     if (type === "text") {
-      (payload as WhatsAppTextPayload).text = { body: text };
+      (payload as WhatsAppTextPayload).text = { body: text! };
     } else if (type === "image") {
       (payload as WhatsAppImagePayload).image = {
         link: mediaUrl!,
@@ -137,6 +152,10 @@ export async function POST(
       if (text && text.trim()) {
         (payload as WhatsAppImagePayload).image.caption = text;
       }
+    } else if (type === "audio") {
+      (payload as WhatsAppAudioPayload).audio = {
+        link: mediaUrl!,
+      };
     }
 
     const maxRetries = 3;

@@ -20,6 +20,7 @@ export class MessageService {
         companyId: input.companyId, 
         phoneNumber: input.phoneNumber,
         hasImage: 'imageUrl' in input && !!input.imageUrl,
+        hasAudio: 'audioUrl' in input && !!input.audioUrl,
       },
     });
 
@@ -75,7 +76,8 @@ export class MessageService {
 
       // Step 4: Create message record (status = 'sending')
       const isImageMessage = 'imageUrl' in input && !!input.imageUrl;
-      const messageContent = input.messageText || (isImageMessage ? '📷 Photo' : '');
+      const isAudioMessage = 'audioUrl' in input && !!input.audioUrl;
+      const messageContent = input.messageText || (isImageMessage ? '📷 Photo' : '') || '';
       
       const messageResult = await ConversationService.createMessage({
         conversationId: conversation.id,
@@ -84,8 +86,8 @@ export class MessageService {
         direction: 'outbound',
         status: 'sending',
         content: messageContent,
-        mediaUrl: isImageMessage ? input.imageUrl : undefined,
-        mediaType: isImageMessage ? 'image' : undefined,
+        mediaUrl: isImageMessage ? input.imageUrl : isAudioMessage ? input.audioUrl : undefined,
+        mediaType: isImageMessage ? 'image' : isAudioMessage ? 'audio' : undefined,
         whatsappAccountId: whatsappAccount.id,
         createdBy: input.userId,
       });
@@ -108,13 +110,14 @@ export class MessageService {
 
       try {
         const isImageMessage = 'imageUrl' in input && !!input.imageUrl;
+        const isAudioMessage = 'audioUrl' in input && !!input.audioUrl;
         
         interface WhatsAppApiRequestBody {
           companyId: number;
           recipientPhoneNumber: string;
           phoneNumberId: string;
           accessToken: string;
-          type: 'text' | 'image';
+          type: 'text' | 'image' | 'audio';
           text?: string;
           mediaUrl?: string;
         }
@@ -124,11 +127,16 @@ export class MessageService {
           recipientPhoneNumber: input.phoneNumber,
           phoneNumberId: whatsappAccount.phoneNumberId,
           accessToken: whatsappAccount.accessToken,
-          type: isImageMessage ? 'image' : 'text',
+          type: isImageMessage ? 'image' : isAudioMessage ? 'audio' : 'text',
         };
 
         if (isImageMessage) {
           requestBody.mediaUrl = input.imageUrl;
+          if (input.messageText) {
+            requestBody.text = input.messageText;
+          }
+        } else if (isAudioMessage) {
+          requestBody.mediaUrl = input.audioUrl;
           if (input.messageText) {
             requestBody.text = input.messageText;
           }
@@ -209,6 +217,8 @@ export class MessageService {
           id: message.id,
           status: finalStatus,
           content: messageContent,
+          mediaUrl: message.mediaUrl,
+          mediaType: message.mediaType,
           createdAt: message.createdAt,
         },
       }, 'Message sent');

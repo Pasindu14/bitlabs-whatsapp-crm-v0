@@ -88,7 +88,11 @@ export function MessageList({ conversationId }: MessageListProps) {
                     mediaId={message.mediaId}
                     mediaType={message.mediaType as 'image' | 'video' | 'audio' | 'document'}
                     caption={message.mediaCaption || undefined}
-                    className="max-w-[250px]"
+                    className={
+                      message.mediaType === 'audio'
+                        ? 'w-80 max-w-full'
+                        : 'max-w-[250px]'
+                    }
                   />
                   {message.mediaType === 'image' && (
                     <p className="text-xs opacity-70 mt-1"></p>
@@ -115,7 +119,11 @@ export function MessageList({ conversationId }: MessageListProps) {
                     <audio
                       src={message.mediaUrl}
                       controls
-                      className="w-full"
+                      className="w-80 max-w-full rounded-lg"
+                      style={{
+                        filter: 'brightness(0.95) contrast(1.1)',
+                        borderRadius: '0.5rem',
+                      }}
                     />
                   )}
                   {message.mediaType === 'document' && (
@@ -130,7 +138,7 @@ export function MessageList({ conversationId }: MessageListProps) {
                   )}
                 </div>
               )}
-              {message.content && message.mediaType !== 'image' && (
+              {message.content && message.mediaType !== 'image' && message.mediaType !== 'audio' && (
                 <p className="text-sm">{message.content}</p>
               )}
               <div className="mt-1 flex items-center justify-between gap-2 text-xs opacity-70">
