@@ -78,7 +78,7 @@ export class MessageService {
       const isImageMessage = 'imageUrl' in input && !!input.imageUrl;
       const isAudioMessage = 'audioUrl' in input && !!input.audioUrl;
       const messageContent = input.messageText || (isImageMessage ? '📷 Photo' : '') || '';
-      
+
       const messageResult = await ConversationService.createMessage({
         conversationId: conversation.id,
         companyId: input.companyId,
@@ -86,7 +86,7 @@ export class MessageService {
         direction: 'outbound',
         status: 'sending',
         content: messageContent,
-        mediaUrl: isImageMessage ? input.imageUrl : isAudioMessage ? input.audioUrl : undefined,
+        mediaUrl: isImageMessage && 'imageUrl' in input ? input.imageUrl : isAudioMessage && 'audioUrl' in input ? input.audioUrl : undefined,
         mediaType: isImageMessage ? 'image' : isAudioMessage ? 'audio' : undefined,
         whatsappAccountId: whatsappAccount.id,
         createdBy: input.userId,
@@ -140,6 +140,12 @@ export class MessageService {
           if (input.messageText) {
             requestBody.text = input.messageText;
           }
+          console.log('[Audio Message Debug]', {
+            isAudioMessage,
+            audioUrl: input.audioUrl,
+            messageText: input.messageText,
+            requestBody: { ...requestBody, accessToken: '***' }
+          });
         } else {
           requestBody.text = input.messageText;
         }
