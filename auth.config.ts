@@ -3,7 +3,7 @@ import type { NextAuthConfig } from "next-auth"
 export default {
     providers: [],
     pages: {
-        signIn: "/login",
+        signIn: "/sign-in",
         error: "/auth/error",
     },
     callbacks: {
@@ -12,8 +12,20 @@ export default {
             const userRole = auth?.user?.role
             const path = nextUrl.pathname
 
+             if(path === "/sign-in" && isLoggedIn) {
+                return Response.redirect(new URL("/users", nextUrl))
+            }
+
+            if(path === "/" && !isLoggedIn) {
+                return Response.redirect(new URL("/sign-in", nextUrl))
+            }
+
+            if(path==="/") {
+                return Response.redirect(new URL("/users", nextUrl))
+            } 
+
             // Redirect logged-in users away from login page
-            if (path === "/login" && isLoggedIn) {
+            if (path === "/sign-in" && isLoggedIn) {
                 return Response.redirect(new URL("/users", nextUrl))
             }
 
