@@ -56,7 +56,8 @@ export function useConversations(filter: ConversationListFilter) {
       return result.data;
     },
     enabled: true,
-    staleTime: 60000,
+    staleTime: 10000,
+    refetchInterval: 10000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
@@ -76,8 +77,9 @@ export function useConversationMessages(conversationId: number) {
     },
     getNextPageParam: (lastPage) => (lastPage?.hasMore ? lastPage.previousCursor : undefined),
     initialPageParam: undefined as string | undefined,
-    staleTime: Infinity,
-    gcTime: 600000,
+    staleTime: 5000,
+    refetchInterval: 5000,
+    gcTime: 5000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
@@ -93,7 +95,7 @@ export function useConversation(conversationId: number | null) {
       return result.data;
     },
     enabled: !!conversationId,
-    staleTime: 30000,
+    staleTime: 2000,
     refetchOnWindowFocus: false,
   });
 }

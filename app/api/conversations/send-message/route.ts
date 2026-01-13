@@ -156,6 +156,11 @@ export async function POST(
       (payload as WhatsAppAudioPayload).audio = {
         link: mediaUrl!,
       };
+      console.log("[Audio Message Payload]", {
+        type: "audio",
+        mediaUrl,
+        payload: payload,
+      });
     }
 
     const maxRetries = 3;
@@ -199,11 +204,21 @@ export async function POST(
           axiosError?.message ??
           "Internal error";
 
-        console.error("[WhatsApp Send Text API Error]", {
-          status,
-          error: payloadErr,
-          attempt: attempt + 1,
-        });
+        if (type === "audio") {
+          console.error("[WhatsApp Audio API Error]", {
+            status,
+            error: payloadErr,
+            mediaUrl,
+            attempt: attempt + 1,
+            fullResponse: axiosError?.response?.data,
+          });
+        } else {
+          console.error("[WhatsApp Send Text API Error]", {
+            status,
+            error: payloadErr,
+            attempt: attempt + 1,
+          });
+        }
 
         // Don't retry on 4xx
         if (status >= 400 && status < 500) {

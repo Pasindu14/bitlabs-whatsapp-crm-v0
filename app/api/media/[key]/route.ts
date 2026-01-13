@@ -10,10 +10,10 @@ import { eq } from "drizzle-orm";
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { key: string } }
+  { params }: { params: Promise<{ key: string }> }
 ): Promise<NextResponse> {
   try {
-    const { key } = params;
+    const { key } = await params;
 
     // Fetch file record from database
     const [fileRecord] = await db
