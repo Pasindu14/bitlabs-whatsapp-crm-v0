@@ -3,7 +3,7 @@ import { db } from "@/db/drizzle";
 import { whatsappWebhookConfigsTable, whatsappAccountsTable } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { WebhookIngestService } from "@/features/whatsapp-webhook/services/webhook-ingest.service";
-import { parseISO } from "date-fns";
+import { inngest } from "@/lib/inngest";
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 
@@ -113,8 +113,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (logResult.data?.logId && logResult.data.logId > 0) {
-      WebhookIngestService.processEvent(logResult.data.logId).catch((error) => {
-        console.error("Failed to process webhook event:", error);
+      await inngest.send({
+        name: "whatsapp/webhook.received",
+        data: { logId: logResult.data.logId },
       });
     }
 
