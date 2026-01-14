@@ -22,6 +22,7 @@ import { generateReactHelpers } from '@uploadthing/react';
 import type { OurFileRouter } from '@/app/api/uploadthing/core';
 import { uploadMediaAction } from '../actions/message-actions';
 import { toast } from 'sonner';
+import { convertToMp3, normalizeMimeType, getFileExtension } from '@/lib/audio-converter';
 
 interface MessageInputProps {
   onSend: (message: string, imageUrl?: string, imageKey?: string, audioUrl?: string, audioKey?: string) => void;
@@ -31,10 +32,6 @@ interface MessageInputProps {
 }
 
 const { useUploadThing } = generateReactHelpers<OurFileRouter>();
-
-const normalizeMimeType = (mimeType: string): string => {
-  return mimeType.split(';')[0].trim();
-};
 
 export function MessageInput({ onSend, isLoading = false, disabled = false, conversationId }: MessageInputProps) {
   const [message, setMessage] = useState('');
@@ -119,9 +116,13 @@ export function MessageInput({ onSend, isLoading = false, disabled = false, conv
       await startImageUpload([selectedImage.file]);
     } else if (audioRecording?.blob) {
       setIsUploading(true);
-      const normalizedMimeType = normalizeMimeType(audioRecording.mimeType);
-      const extension = normalizedMimeType.split('/')[1];
-      await startAudioUpload([new File([audioRecording.blob], `audio-${Date.now()}.${extension}`, { type: normalizedMimeType })]);
+      try {
+        const mp3File = await convertToMp3(audioRecording.blob);
+        await startAudioUpload([mp3File]);
+      } catch (error) {
+        toast.error('Failed to convert audio to MP3');
+        setIsUploading(false);
+      }
     } else if (message.trim()) {
       onSend(message);
       setMessage('');
